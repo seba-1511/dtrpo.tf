@@ -45,6 +45,9 @@ class FCNet(ch.Chain):
             out = l(F.relu(out))
         return out.data
 
+    def get_grads(self):
+        return [p.grad for p in self.params]
+
     def set_params(self, update):
         for p, u in zip(self.params, update):
             p.copydata(u)
@@ -84,11 +87,9 @@ class LinearVF(object):
 
 
 def gauss_log_prob(means, logstds, x):
-    var = F.exp(2.0 * logstds)
+    var = F.exp(2.0*logstds)
     gp = -((x - means)**2) / 2.0 * var - half_log_2pi - logstds
-    gp = F.reshape(gp, (1, -1))
-    ones = ch.Variable(np.ones((gp.shape[0], 1), DTYPE))
-    return F.matmul(ones, gp)
+    return gp
 
 
 def numel(x):

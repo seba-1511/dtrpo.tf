@@ -49,17 +49,19 @@ class TRPO(object):
         self.iter_action_mean = [[], ]
         self.iter_action_logstd = [[], ]
 
+
     def act(self, s):
+        """
+        Sample from the policy, where the outputs of the net are the mean and
+        the param self.action_logstd_param gives you the logstd.
+        """
         s = ch.Variable(convert_type(s))
         action_mean = self.policy(s)
-        action_logstd = np.tile(self.action_logstd_param,
-                                np.asarray((self.policy.out_dim, 1), dtype=DTYPE))
-        info_stats = {
-                'action_mean': action_mean[0][0],
-                'action_logstd': action_logstd[0][0],
-                }
-        out = action_mean + np.exp(action_logstd) * np.random.randn(*action_logstd.shape)
-        return out[0][0], info_stats
+        out = action_mean 
+        out += (np.exp(self.action_logstd_param) *
+                np.random.randn(*self.action_logstd_param.shape))
+        return out[0], {'action_mean': action_mean,
+                        'action_logstd': self.action_logstd_param}
 
     def learn(self, s0, a, r, s1, end_ep, action_info=None):
         ep = self.iter_n_ep
@@ -102,18 +104,19 @@ class TRPO(object):
         # Standardize A() to have mean=0, std=1
         advantage = np.concatenate(advantages)
         advantage -= advantage.mean()
-        advantage /= (advantage + EPSILON)
+        advantage /= (advantage.std() + EPSILON)
 
         states = np.concatenate(self.iter_states)
         actions = np.concatenate(self.iter_actions)
         actions = convert_type(actions)
         advantage = convert_type(advantage)
-        means = np.concatenate(self.iter_action_mean)
-        logstds = np.concatenate(self.iter_action_logstd)
+        means = np.concatenate(self.iter_action_mean).reshape(states.shape[0], -1)
+        logstds = np.concatenate(self.iter_action_logstd).reshape(states.shape[0], -1)
 
         surrogate = self._surrogate(states, actions, means, logstds, advantage)
-        grads = surrogate.backward()
-        print 'Grads: ', grads
+        surrogate.backward()
+        grads = self.policy.get_grads()
+        # print 'Grads: ', grads
 
         update = self.optimizer(self.policy.params, grads)
         self.set_params(update)
@@ -145,25 +148,19 @@ class TRPO(object):
     def _surrogate(self, states, actions, action_means, action_logstds, advantage):
         actions = ch.Variable(actions)
         a_means = ch.Variable(action_means)
-        a_logstds = ch.Variable(action_logstds)
-        old_logp_n = gauss_log_prob(a_means, a_logstds, actions)
+        a_logstds = ch.Variable(np.zeros(a_means.shape, dtype=DTYPE) + action_logstds)
 
-        # TODO: Get correct log_p_n with net
-
-        # new_a_means = self.policy(convert_type(states))
-        # new_a_logstds = np.tile(self.action_logstd_param,
-                             # np.asarray((self.policy.out_dim, 1), dtype=DTYPE))
-        # print new_a_means.shape, new_a_logstds.shape
-        # log_p_n = gauss_log_prob(new_a_means, new_a_logstds, actions)
-
-
-        log_p_n = gauss_log_prob(a_means, a_logstds, actions)
+        # Computes the gauss_log_prob on sampled data.
         log_oldp_n = gauss_log_prob(a_means, a_logstds, actions)
-        # log_oldp_n = gauss_log_prob(old_action_means, old_action_logstds, actions)
+
+        # Here we compute the gauss_log_prob, but without sampling.
+        new_a_means = self.policy(convert_type(states))
+        new_a_logstds = np.zeros_like(new_a_means) + self.action_logstd_param
+        log_p_n = gauss_log_prob(new_a_means, new_a_logstds, actions)
+
         ratio = F.exp(log_p_n - log_oldp_n)
-        advantages = ch.Variable(advantage)
-        advantages *= F.transpose(ratio)
-        surrogate = -F.sum(advantages) / numel(advantages)
+        out = ch.Variable(advantage) * ratio
+        surrogate = -F.sum(out) / numel(out)
         return surrogate
 
     def _kl(self):
