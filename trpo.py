@@ -56,7 +56,7 @@ class TRPO(object):
         the param self.action_logstd_param gives you the logstd.
         """
         s = ch.Variable(convert_type(s))
-        action_mean = self.policy(s)
+        action_mean = self.policy(s).data
         out = action_mean 
         out += (np.exp(self.action_logstd_param) *
                 np.random.randn(*self.action_logstd_param.shape))
@@ -114,12 +114,14 @@ class TRPO(object):
         logstds = np.concatenate(self.iter_action_logstd).reshape(states.shape[0], -1)
 
         surrogate = self._surrogate(states, actions, means, logstds, advantage)
-        surrogate.backward()
+        surrogate.backward(retain_grad=True)
         grads = self.policy.get_grads()
-        # print 'Grads: ', grads
+        print 'Grads: ', grads
+        import pdb; pdb.set_trace()
 
         update = self.optimizer(self.policy.params, grads)
         self.set_params(update)
+        surrogate.cleargrads()
 
         print '*' * 20, 'Iteration ' + str(self.n_iterations), '*' * 20
         print 'Average Reward on Iteration:', self.iter_reward / float(ep+1)
@@ -155,12 +157,22 @@ class TRPO(object):
 
         # Here we compute the gauss_log_prob, but without sampling.
         new_a_means = self.policy(convert_type(states))
-        new_a_logstds = np.zeros_like(new_a_means) + self.action_logstd_param
+        new_a_logstds = (np.zeros(new_a_means.shape, dtype=DTYPE) +
+                         convert_type(self.action_logstd_param))
+        new_a_logstds = ch.Variable(new_a_logstds)
         log_p_n = gauss_log_prob(new_a_means, new_a_logstds, actions)
 
         ratio = F.exp(log_p_n - log_oldp_n)
-        out = ch.Variable(advantage) * ratio
-        surrogate = -F.sum(out) / numel(out)
+        # out = ch.Variable(advantage) * dot(ratio)
+        out = F.transpose(ch.Variable(advantage) * ratio)
+        isa = ch.Variable(np.ones(out.shape, DTYPE).T)
+        # surrogate = -F.sum(out) / ch.Variable(np.array([numel(out)], dtype=DTYPE))
+        sim = F.matmul(out, isa)
+        nim = ch.Variable(np.array([[numel(out)]], DTYPE))
+        surrogate = sim / nim
+        # surrogate = -F.sum(out) / numel(out)
+        surrogate.backward()
+        import pdb; pdb.set_trace()
         return surrogate
 
     def _kl(self):

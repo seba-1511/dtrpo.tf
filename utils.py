@@ -30,7 +30,7 @@ class FCNet(ch.Chain):
         l = L.Linear(prev, out_dim)
         self.layers_list.append(l)
         self.layers_dict['l'+str(len(layers))] = l
-        self.net = ch.Chain(**self.layers_dict)
+        # self.net = ch.Chain(**self.layers_dict)
         params = []
         for l in self.layers_list:
             params.append(l.W)
@@ -39,14 +39,26 @@ class FCNet(ch.Chain):
 
     def __call__(self, x):
         """ x: a chainer variable"""
-        out = F.reshape(x, (-1, self.in_dim))
-        out = self.layers_list[0](out)
+        # Define net:
+        net = F.reshape(x, (-1, self.in_dim))
+        net = self.layers_list[0](net)
         for l in self.layers_list[1:]:
-            out = l(F.relu(out))
-        return out.data
+            net = l(F.relu(net))
+        self.net = net
+        return net
+
+        # out = F.reshape(x, (-1, self.in_dim))
+        # out = self.layers_list[0](out)
+        # for l in self.layers_list[1:]:
+            # out = l(F.relu(out))
+        # return out.data
 
     def get_grads(self):
         return [p.grad for p in self.params]
+
+    def cleargrads(self):
+        for p in self.params:
+            p.cleargrads()
 
     def set_params(self, update):
         for p, u in zip(self.params, update):
