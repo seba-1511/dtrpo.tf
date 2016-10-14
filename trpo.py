@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
-import chainer as ch
-import chainer.functions as F
-from chainer.cuda import cupy as cp
+from keras import backend as K
 from time import time
 from variables import DTYPE, EPSILON
 from utils import convert_type, discount, LinearVF, gauss_log_prob, numel
@@ -33,6 +31,9 @@ class TRPO(object):
         self.vf = LinearVF()
         self._reset_iter()
         self.action_logstd_param = 0.01 * np.random.randn(1, policy.out_dim).astype(DTYPE)
+        self.surrogate = self.build_surrogate(None, None, None, None, None)
+        self.entropy = self.build_entropy()
+        self.kl = self.build_kl()
 
         self.start_time = time()
 
@@ -55,8 +56,9 @@ class TRPO(object):
         Sample from the policy, where the outputs of the net are the mean and
         the param self.action_logstd_param gives you the logstd.
         """
-        s = ch.Variable(convert_type(s))
-        action_mean = self.policy(s).data
+        s = convert_type(s)
+        s = s.reshape((1, -1))
+        action_mean = self.policy(s)
         out = action_mean 
         out += (np.exp(self.action_logstd_param) *
                 np.random.randn(*self.action_logstd_param.shape))
@@ -113,24 +115,21 @@ class TRPO(object):
         means = np.concatenate(self.iter_action_mean).reshape(states.shape[0], -1)
         logstds = np.concatenate(self.iter_action_logstd).reshape(states.shape[0], -1)
 
-        surrogate = self._surrogate(states, actions, means, logstds, advantage)
-        surrogate.backward(retain_grad=True)
+        surrogate = self.surrogate(states, actions, means, logstds, advantage)
         grads = self.policy.get_grads()
         print 'Grads: ', grads
-        import pdb; pdb.set_trace()
 
         update = self.optimizer(self.policy.params, grads)
         self.set_params(update)
-        surrogate.cleargrads()
 
         print '*' * 20, 'Iteration ' + str(self.n_iterations), '*' * 20
         print 'Average Reward on Iteration:', self.iter_reward / float(ep+1)
         print 'Total Steps: ', self.step
         print 'Total Epsiodes: ', self.episodes
         print 'Time Elapsed: ', time() - self.start_time
-        print 'KL Divergence: ', self._kl()
-        print 'Surrogate Loss: ', surrogate.data
-        print 'Entropy: ', self._entropy()
+        print 'KL Divergence: ', self.kl(None)
+        print 'Surrogate Loss: ', surrogate
+        print 'Entropy: ', self.entropy(None)
         print '\n'
         self._reset_iter()
 
@@ -144,13 +143,11 @@ class TRPO(object):
     def set_params(self, params):
         self.policy.set_params(params)
 
-    def _grads(self):
-        return 0
-
-    def _surrogate(self, states, actions, action_means, action_logstds, advantage):
-        actions = ch.Variable(actions)
-        a_means = ch.Variable(action_means)
-        a_logstds = ch.Variable(np.zeros(a_means.shape, dtype=DTYPE) + action_logstds)
+    def build_surrogate(self, states, actions, action_means, action_logstds, advantage):
+        return lambda x, a, s, d, f: 0.0
+        actions = actions
+        a_means = action_means
+        a_logstds = np.zeros(a_means.shape, dtype=DTYPE) + action_logstds
 
         # Computes the gauss_log_prob on sampled data.
         log_oldp_n = gauss_log_prob(a_means, a_logstds, actions)
@@ -159,24 +156,16 @@ class TRPO(object):
         new_a_means = self.policy(convert_type(states))
         new_a_logstds = (np.zeros(new_a_means.shape, dtype=DTYPE) +
                          convert_type(self.action_logstd_param))
-        new_a_logstds = ch.Variable(new_a_logstds)
+        new_a_logstds = K.variable(new_a_logstds)
         log_p_n = gauss_log_prob(new_a_means, new_a_logstds, actions)
 
-        ratio = F.exp(log_p_n - log_oldp_n)
-        # out = ch.Variable(advantage) * dot(ratio)
-        out = F.transpose(ch.Variable(advantage) * ratio)
-        isa = ch.Variable(np.ones(out.shape, DTYPE).T)
-        # surrogate = -F.sum(out) / ch.Variable(np.array([numel(out)], dtype=DTYPE))
-        sim = F.matmul(out, isa)
-        nim = ch.Variable(np.array([[numel(out)]], DTYPE))
-        surrogate = sim / nim
-        # surrogate = -F.sum(out) / numel(out)
-        surrogate.backward()
-        import pdb; pdb.set_trace()
+        ratio = K.exp(log_p_n - log_oldp_n)
+        out = K.transpose(ch.Variable(advantage) * ratio)
+        surrogate = -F.sum(out) / numel(out)
         return surrogate
 
-    def _kl(self):
-        return 0.0
+    def build_kl(self):
+        return lambda x: 0.0
 
-    def _entropy(self):
-        return 0.0
+    def build_entropy(self):
+        return lambda x: 0.0

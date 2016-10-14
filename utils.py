@@ -2,67 +2,55 @@
 
 import numpy as np
 from scipy import signal
-import chainer as ch
-import chainer.functions as F
-import chainer.links as L
+from keras import backend as K
+from keras.layers import Input, Dense
+from keras.models import Model
 from variables import DTYPE
 
 half_log_2pi = np.log(2*np.pi) * 0.5
 
 
-class FCNet(ch.Chain):
+class FCNet(object):
     """A simple policy network"""
 
-    def __init__(self, in_dim, out_dim, layers=None):
-        """layers: a list of the number of hidden units in the MLP"""
-        if layers is None:
-            layers = [64, 64]
+    def __init__(self, in_dim, out_dim, layer_sizes=None):
+        """
+            layers: a list of the number of hidden units in the MLP
+            in_dim: int, flattened number of inputs
+            out_dim: int, flttened number of outputs
+        """
+        if layer_sizes is None:
+            layer_sizes = [64, 64]
         self.in_dim = in_dim
         self.out_dim = out_dim
-        self.layers_dict = {}
-        self.layers_list = []
-        prev = in_dim
-        for i, curr in enumerate(layers):
-            l = L.Linear(prev, curr)
-            self.layers_list.append(l)
-            self.layers_dict['l'+str(i)] = l
-            prev = curr
-        l = L.Linear(prev, out_dim)
-        self.layers_list.append(l)
-        self.layers_dict['l'+str(len(layers))] = l
-        # self.net = ch.Chain(**self.layers_dict)
-        params = []
-        for l in self.layers_list:
-            params.append(l.W)
-            params.append(l.b)
-        self.params = params
+        in_dim = (in_dim, )
+
+        self.layers = []
+        x = data = Input(shape=in_dim)
+        for l in layer_sizes:
+            x = Dense(l, activation='relu')(x)
+            self.layers.append(x)
+        x = Dense(out_dim, activation='linear')(x)
+        self.layers.append(x)
+        self.model = Model(input=data, output=x)
+        self.net = K.function([data, ], [self.model(data)], [])
+
+    @property
+    def params(self):
+        return []
+
 
     def __call__(self, x):
         """ x: a chainer variable"""
-        # Define net:
-        net = F.reshape(x, (-1, self.in_dim))
-        net = self.layers_list[0](net)
-        for l in self.layers_list[1:]:
-            net = l(F.relu(net))
-        self.net = net
-        return net
-
-        # out = F.reshape(x, (-1, self.in_dim))
-        # out = self.layers_list[0](out)
-        # for l in self.layers_list[1:]:
-            # out = l(F.relu(out))
-        # return out.data
+        return self.net([x, ])[0]
 
     def get_grads(self):
-        return [p.grad for p in self.params]
-
-    def cleargrads(self):
-        for p in self.params:
-            p.cleargrads()
+        return 0.0
+        return [l.get_weights() for l in self.layers]
 
     def set_params(self, update):
-        for p, u in zip(self.params, update):
-            p.copydata(u)
+        return 0.0
+        raise('not implemented !')
 
 
 class LinearVF(object):
@@ -81,8 +69,8 @@ class LinearVF(object):
         if self.W is None:
             # return ch.Variable(np.zeros((1, len(states)), dtype=DTYPE)).data
             return np.zeros((len(states), 1), dtype=DTYPE)
-        features = ch.Variable(self.extract_features(states))
-        return F.matmul(features, self.W).data
+        features = np.array(self.extract_features(states), DTYPE)
+        return np.dot(features, self.W)
 
     def learn(self, list_states, list_returns):
         # TODO: Implement lstsq on GPU
@@ -95,11 +83,11 @@ class LinearVF(object):
                 features.T.dot(features) + lamb * np.identity(n_col),
                 features.T.dot(returns)
         )[0]
-        self.W = ch.Variable(W)
+        self.W = np.array(W, DTYPE)
 
 
 def gauss_log_prob(means, logstds, x):
-    var = F.exp(2.0*logstds)
+    var = np.exp(2.0*logstds)
     gp = -((x - means)**2) / 2.0 * var - half_log_2pi - logstds
     return gp
 
