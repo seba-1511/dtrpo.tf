@@ -42,6 +42,10 @@ class TRPO(object):
     def n_iterations(self):
         return self.step // self.update_freq
 
+    @propertiy
+    def params(self):
+        return [self.action_logstd_param] + self.policy.params
+
     def _reset_iter(self):
         self.iter_reward = 0
         self.iter_n_ep = 0
@@ -167,6 +171,7 @@ class TRPO(object):
         surr = -K.mean(ratio * advantages)
         inputs = [a, s, a_means, a_logstds, advantages, new_logstds_shape]
         surr_graph = K.function(inputs, [surr], [])
+        grad_surr_graph = K.gradients(surr_graph, self.params)
 
         def surrogate(states, actions, action_means, action_logstds, advantages):
             logstds = np.zeros(action_means.shape, dtype=DTYPE) + action_logstds
