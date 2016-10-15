@@ -42,9 +42,9 @@ class TRPO(object):
     def n_iterations(self):
         return self.step // self.update_freq
 
-    @propertiy
+    @property
     def params(self):
-        return [self.action_logstd_param] + self.policy.params
+        return [self.action_logstd_param, ]  + self.policy.params
 
     def _reset_iter(self):
         self.iter_reward = 0
@@ -120,11 +120,8 @@ class TRPO(object):
         means = np.concatenate(self.iter_action_mean).reshape(states.shape[0], -1)
         logstds = np.concatenate(self.iter_action_logstd).reshape(states.shape[0], -1)
 
-        surr_loss = self.surrogate(states, actions, means, logstds, advantage)
-        grads = self.policy.get_grads()
-        print 'Grads: ', grads
-
-        update = self.optimizer(self.policy.params, grads)
+        surr_loss, grads = self.surrogate(states, actions, means, logstds, advantage)
+        update = self.optimizer(self.params, grads)
         self.set_params(update)
 
         print '*' * 20, 'Iteration ' + str(self.n_iterations), '*' * 20
@@ -147,7 +144,8 @@ class TRPO(object):
 
     def set_params(self, params):
         # TODO: Remember to set the value of self.np_action_logstd_param
-        self.policy.set_params(params)
+        pass
+            
 
     def build_surrogate(self):
         # Build graph of surrogate
@@ -169,36 +167,23 @@ class TRPO(object):
         # Compute the actual surrogate
         ratio = K.exp(new_log_p_n - old_log_p_n)
         surr = -K.mean(ratio * advantages)
+        grad_surr = K.gradients(surr, self.params)
+
         inputs = [a, s, a_means, a_logstds, advantages, new_logstds_shape]
-        surr_graph = K.function(inputs, [surr], [])
-        grad_surr_graph = K.gradients(surr_graph, self.params)
+        inputs += self.params
+	# TODO: Ridiculous that I have to run the function twice !
+        surr_graph = K.function(inputs, [surr,], [])
+	grad_surr_graph = K.function(inputs, grad_surr, [])
 
         def surrogate(states, actions, action_means, action_logstds, advantages):
+            # TODO: Allocating new np.arrays is slow. Re-use them !
             logstds = np.zeros(action_means.shape, dtype=DTYPE) + action_logstds
             new_logstds = np.zeros(action_means.shape, dtype=DTYPE)
-            params = [actions, states, action_means, logstds,
+            args = [actions, states, action_means, logstds,
                       advantages, new_logstds]
-            return surr_graph(params)
+            return surr_graph(args), grad_surr_graph(args)
+
         return surrogate
-
-        # return lambda x, a, s, d, f: 0.0
-        # a_means = action_means
-        # a_logstds = np.zeros(a_means.shape, dtype=DTYPE) + action_logstds
-
-        # # Computes the gauss_log_prob on sampled data.
-        # log_oldp_n = gauss_log_prob(a_means, a_logstds, actions)
-
-        # # Here we compute the gauss_log_prob, but without sampling.
-        # new_a_means = self.policy(convert_type(states))
-        # new_a_logstds = (np.zeros(new_a_means.shape, dtype=DTYPE) +
-                         # convert_type(self.action_logstd_param))
-        # new_a_logstds = K.variable(new_a_logstds)
-        # log_p_n = gauss_log_prob(new_a_means, new_a_logstds, actions)
-
-        # ratio = K.exp(log_p_n - log_oldp_n)
-        # out = K.transpose(ch.Variable(advantage) * ratio)
-        # surrogate = -F.sum(out) / numel(out)
-        # return surrogate
 
     def build_kl(self):
         return lambda x: 0.0

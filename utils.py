@@ -37,16 +37,11 @@ class FCNet(object):
 
     @property
     def params(self):
-        return []
-
+        return self.model.trainable_weights
 
     def __call__(self, x):
         """ x: a chainer variable"""
         return self.net([x, ])[0]
-
-    def get_grads(self):
-        return 0.0
-        return [l.get_weights() for l in self.layers]
 
     def set_params(self, update):
         return 0.0
@@ -103,3 +98,4 @@ def convert_type(x):
 def discount(rewards, gamma):
     # return signal.lfilter([1], [1, -gamma], rewards[::-1], axis=0)[::-1].reshape(1, -1)
     return signal.lfilter([1], [1, -gamma], rewards[::-1], axis=0)[::-1].reshape(-1, 1)
+
