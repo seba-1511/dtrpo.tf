@@ -30,8 +30,9 @@ class TRPO(object):
         self.episodes = 0
         self.vf = LinearVF()
         self._reset_iter()
-        self.action_logstd_param = 0.01 * np.random.randn(1, policy.out_dim).astype(DTYPE)
-        self.surrogate = self.build_surrogate(None, None, None, None, None)
+        self.np_action_logstd_param = 0.01 * np.random.randn(1, policy.out_dim).astype(DTYPE)
+        self.action_logstd_param = K.variable(self.np_action_logstd_param)
+        self.surrogate = self.build_surrogate()
         self.entropy = self.build_entropy()
         self.kl = self.build_kl()
 
@@ -60,10 +61,10 @@ class TRPO(object):
         s = s.reshape((1, -1))
         action_mean = self.policy(s)
         out = action_mean 
-        out += (np.exp(self.action_logstd_param) *
-                np.random.randn(*self.action_logstd_param.shape))
+        out += (np.exp(self.np_action_logstd_param) *
+                np.random.randn(*self.np_action_logstd_param.shape))
         return out[0], {'action_mean': action_mean,
-                        'action_logstd': self.action_logstd_param}
+                        'action_logstd': self.np_action_logstd_param}
 
     def learn(self, s0, a, r, s1, end_ep, action_info=None):
         ep = self.iter_n_ep
@@ -115,7 +116,7 @@ class TRPO(object):
         means = np.concatenate(self.iter_action_mean).reshape(states.shape[0], -1)
         logstds = np.concatenate(self.iter_action_logstd).reshape(states.shape[0], -1)
 
-        surrogate = self.surrogate(states, actions, means, logstds, advantage)
+        surr_loss = self.surrogate(states, actions, means, logstds, advantage)
         grads = self.policy.get_grads()
         print 'Grads: ', grads
 
@@ -128,7 +129,7 @@ class TRPO(object):
         print 'Total Epsiodes: ', self.episodes
         print 'Time Elapsed: ', time() - self.start_time
         print 'KL Divergence: ', self.kl(None)
-        print 'Surrogate Loss: ', surrogate
+        print 'Surrogate Loss: ', surr_loss
         print 'Entropy: ', self.entropy(None)
         print '\n'
         self._reset_iter()
@@ -141,28 +142,58 @@ class TRPO(object):
         pass
 
     def set_params(self, params):
+        # TODO: Remember to set the value of self.np_action_logstd_param
         self.policy.set_params(params)
 
-    def build_surrogate(self, states, actions, action_means, action_logstds, advantage):
-        return lambda x, a, s, d, f: 0.0
-        actions = actions
-        a_means = action_means
-        a_logstds = np.zeros(a_means.shape, dtype=DTYPE) + action_logstds
+    def build_surrogate(self):
+        # Build graph of surrogate
+        a = K.placeholder(ndim=2)
+        s = K.placeholder(ndim=2)
+        a_means = K.placeholder(ndim=2)
+        a_logstds = K.placeholder(ndim=2)
+        advantages = K.placeholder(ndim=2)
+        new_logstds_shape = K.placeholder(ndim=2) # Just a 0-valued tensor of the right shape
 
         # Computes the gauss_log_prob on sampled data.
-        log_oldp_n = gauss_log_prob(a_means, a_logstds, actions)
+        old_log_p_n = gauss_log_prob(a_means, a_logstds, a)
 
         # Here we compute the gauss_log_prob, but without sampling.
-        new_a_means = self.policy(convert_type(states))
-        new_a_logstds = (np.zeros(new_a_means.shape, dtype=DTYPE) +
-                         convert_type(self.action_logstd_param))
-        new_a_logstds = K.variable(new_a_logstds)
-        log_p_n = gauss_log_prob(new_a_means, new_a_logstds, actions)
+        new_a_means = self.policy.model(s)
+        new_a_logstds = (new_logstds_shape + self.action_logstd_param)
+        new_log_p_n = gauss_log_prob(new_a_means, new_a_logstds, a)
 
-        ratio = K.exp(log_p_n - log_oldp_n)
-        out = K.transpose(ch.Variable(advantage) * ratio)
-        surrogate = -F.sum(out) / numel(out)
+        # Compute the actual surrogate
+        ratio = K.exp(new_log_p_n - old_log_p_n)
+        surr = -K.mean(ratio * advantages)
+        inputs = [a, s, a_means, a_logstds, advantages, new_logstds_shape]
+        surr_graph = K.function(inputs, [surr], [])
+
+        def surrogate(states, actions, action_means, action_logstds, advantages):
+            logstds = np.zeros(action_means.shape, dtype=DTYPE) + action_logstds
+            new_logstds = np.zeros(action_means.shape, dtype=DTYPE)
+            params = [actions, states, action_means, logstds,
+                      advantages, new_logstds]
+            return surr_graph(params)
         return surrogate
+
+        # return lambda x, a, s, d, f: 0.0
+        # a_means = action_means
+        # a_logstds = np.zeros(a_means.shape, dtype=DTYPE) + action_logstds
+
+        # # Computes the gauss_log_prob on sampled data.
+        # log_oldp_n = gauss_log_prob(a_means, a_logstds, actions)
+
+        # # Here we compute the gauss_log_prob, but without sampling.
+        # new_a_means = self.policy(convert_type(states))
+        # new_a_logstds = (np.zeros(new_a_means.shape, dtype=DTYPE) +
+                         # convert_type(self.action_logstd_param))
+        # new_a_logstds = K.variable(new_a_logstds)
+        # log_p_n = gauss_log_prob(new_a_means, new_a_logstds, actions)
+
+        # ratio = K.exp(log_p_n - log_oldp_n)
+        # out = K.transpose(ch.Variable(advantage) * ratio)
+        # surrogate = -F.sum(out) / numel(out)
+        # return surrogate
 
     def build_kl(self):
         return lambda x: 0.0

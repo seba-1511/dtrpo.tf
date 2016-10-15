@@ -7,7 +7,7 @@ from keras.layers import Input, Dense
 from keras.models import Model
 from variables import DTYPE
 
-half_log_2pi = np.log(2*np.pi) * 0.5
+half_log_2pi = K.variable(np.log(2*np.pi) * 0.5)
 
 
 class FCNet(object):
@@ -87,7 +87,7 @@ class LinearVF(object):
 
 
 def gauss_log_prob(means, logstds, x):
-    var = np.exp(2.0*logstds)
+    var = K.exp(2.0*logstds)
     gp = -((x - means)**2) / 2.0 * var - half_log_2pi - logstds
     return gp
 
