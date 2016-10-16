@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
+import cPickle as pk
 from keras import backend as K
 from time import time
 from variables import DTYPE, EPSILON
@@ -121,8 +122,8 @@ class TRPO(object):
         logstds = np.concatenate(self.iter_action_logstd).reshape(states.shape[0], -1)
 
         surr_loss, grads = self.surrogate(states, actions, means, logstds, advantage)
-        update = self.optimizer(self.params, grads)
-        self.set_params(update)
+        update = self.optimizer(grads)
+        self.update_params(update)
 
         print '*' * 20, 'Iteration ' + str(self.n_iterations), '*' * 20
         print 'Average Reward on Iteration:', self.iter_reward / float(ep+1)
@@ -137,15 +138,24 @@ class TRPO(object):
 
     def done(self):
         return False
-        return self.iter_reward >= self.env.solved_threshold * 1.1
+        return self.iter_reward >= self.env.solved_threshold * 2.1
 
-    def save(self, name):
-        pass
+    def load(self, path):
+        with open(path, 'wb') as f:
+            params = pk.load(f)
+            self.set_params(params)
+
+    def save(self, path):
+        params = K.batch_get_value(self.params)
+        with open(path, 'wb') as f:
+            pk.dump(params, f)
 
     def set_params(self, params):
-        # TODO: Remember to set the value of self.np_action_logstd_param
-        pass
-            
+        K.batch_set_value(self.params, params)
+
+    def update_params(self, updates):
+        for p, u in zip(self.params, updates):
+            K.set_value(p, K.get_value(p) + u)
 
     def build_surrogate(self):
         # Build graph of surrogate
