@@ -82,8 +82,8 @@ class LinearVF(object):
 
 
 def gauss_log_prob(means, logstds, x):
-    var = K.exp(2.0*logstds)
-    gp = -((x - means)**2) / 2.0 * var - half_log_2pi - logstds
+    var = K.exp(2 * logstds)
+    gp = -((x - means)**2) / (2 * var) - half_log_2pi - logstds
     return gp
 
 

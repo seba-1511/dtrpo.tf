@@ -58,7 +58,7 @@ class TRPO(object):
 
         self.surrogate, self.surr_graph, self.grads_surr_graph = self.build_surrogate(inputs)
         self.entropy, self.ent_graph, self.grads_ent_graph = self.build_entropy(inputs)
-        self.kl = self.build_kl(inputs)
+        self.kl, self.kl_graph, self.grads_kl_graph = self.build_kl(inputs)
 
 
     def _reset_iter(self):
@@ -135,9 +135,9 @@ class TRPO(object):
         means = np.concatenate(self.iter_action_mean).reshape(states.shape[0], -1)
         logstds = np.concatenate(self.iter_action_logstd).reshape(states.shape[0], -1)
 
-        inputs = (states, actions, means, logstds, advantage)
+        inputs = [states, actions, means, logstds, advantage]
 
-        surr_loss, _ = self.surrogate(*inputs)
+        # surr_loss, _ = self.surrogate(*inputs)
         
         # update = self.optimizer(surr_grads)
 
@@ -148,8 +148,8 @@ class TRPO(object):
         print 'Total Steps: ', self.step
         print 'Total Epsiodes: ', self.episodes
         print 'Time Elapsed: ', time() - self.start_time
-        print 'KL Divergence: ', self.kl(None)
-        print 'Surrogate Loss: ', surr_loss
+        print 'KL Divergence: ', self.kl(*inputs)[0]
+        print 'Surrogate Loss: ', self.surrogate(*inputs)[0]
         print 'Entropy: ', self.entropy(*inputs)[0]
         print '\n'
         self._reset_iter()
@@ -208,7 +208,31 @@ class TRPO(object):
         return surrogate, surr_graph, grad_surr_graph
 
     def build_kl(self, variables):
-        return lambda x: 0.0
+        a, s, a_means, a_logstds, advantages, new_logstds_shape = variables
+
+        new_a_means = self.policy.model(s)
+        new_a_logstds = new_logstds_shape + self.action_logstd_param
+
+        # NOTE: Might be fishy. (cf: Sutskever's code, utils.py:gauss_KL())
+        old_var = K.exp(2 * a_logstds)
+        new_var = K.exp(2 * new_a_logstds)
+        temp = (old_var + (a_means - new_a_means)**2) / (2 * new_var)
+        kl_graph = K.mean(new_a_logstds - a_logstds + temp - 0.5)
+        grad_kl_graph = K.gradients(kl_graph, self.params)
+
+        inputs = variables + self.params
+        # graph = K.function(inputs, [kl_graph, ] + grad_kl_graph)
+        graph = K.function(inputs, [kl_graph, ])
+
+        def kl(states, actions, action_means, action_logstds, advantages):
+            logstds = np.zeros(action_means.shape, dtype=DTYPE) + action_logstds
+            new_logstds = np.zeros(action_means.shape, dtype=DTYPE)
+            args = [actions, states, action_means, logstds,
+                      advantages, new_logstds]
+            res = graph(args)
+            return res[0], res[1:]
+
+        return kl, kl_graph, grad_kl_graph
 
     def build_entropy(self, variables):
         a, s, a_means, a_logstds, advantages, new_logstds_shape = variables
