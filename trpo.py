@@ -82,7 +82,7 @@ class TRPO(object):
         self.step += 1
         self.iter_reward += r
 
-        if end_ep:
+        if end_ep and self.step % self.update_freq != 0:
             ep = self.iter_n_ep = ep + 1
             self.episodes += 1
             self.iter_actions.append([])
