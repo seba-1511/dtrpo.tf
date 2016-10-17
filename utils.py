@@ -88,7 +88,9 @@ def gauss_log_prob(means, logstds, x):
 
 
 def numel(x):
-    return reduce(lambda x, y: x*y, x.shape)
+    if hasattr(x, 'shape'):
+        return reduce(lambda x, y: x*y, x.shape)
+    return x.n
 
 
 def convert_type(x):

@@ -20,7 +20,7 @@ class TRPO(object):
     """
 
     def __init__(self, env, policy=None, optimizer=None, delta=0.01,
-                 gamma=0.995, update_freq=100):
+                 gamma=0.99, update_freq=100):
         self.env = env
         self.policy = policy
         self.optimizer = optimizer
@@ -33,9 +33,8 @@ class TRPO(object):
         self._reset_iter()
         self.np_action_logstd_param = 0.01 * np.random.randn(1, policy.out_dim).astype(DTYPE)
         self.action_logstd_param = K.variable(self.np_action_logstd_param)
-        self.surrogate = self.build_surrogate()
-        self.entropy = self.build_entropy()
-        self.kl = self.build_kl()
+
+        self.build_computational_graphs()
 
         self.start_time = time()
 
@@ -46,6 +45,21 @@ class TRPO(object):
     @property
     def params(self):
         return [self.action_logstd_param, ]  + self.policy.params
+
+    def build_computational_graphs(self):
+        # Build loss graphs
+        a = K.placeholder(ndim=2, name='actions')
+        s = K.placeholder(ndim=2, name='states')
+        a_means = K.placeholder(ndim=2, name='action_means')
+        a_logstds = K.placeholder(ndim=2, name='actions_logstds')
+        advantages = K.placeholder(ndim=2, name='advantage_values')
+        new_logstds_shape = K.placeholder(ndim=2, name='logstds_shape') # Just a 0-valued tensor of the right shape
+        inputs = [a, s, a_means, a_logstds, advantages, new_logstds_shape]
+
+        self.surrogate, self.surr_graph, self.grads_surr_graph = self.build_surrogate(inputs)
+        self.entropy, self.ent_graph, self.grads_ent_graph = self.build_entropy(inputs)
+        self.kl = self.build_kl(inputs)
+
 
     def _reset_iter(self):
         self.iter_reward = 0
@@ -121,9 +135,13 @@ class TRPO(object):
         means = np.concatenate(self.iter_action_mean).reshape(states.shape[0], -1)
         logstds = np.concatenate(self.iter_action_logstd).reshape(states.shape[0], -1)
 
-        surr_loss, grads = self.surrogate(states, actions, means, logstds, advantage)
-        update = self.optimizer(grads)
-        self.update_params(update)
+        inputs = (states, actions, means, logstds, advantage)
+
+        surr_loss, _ = self.surrogate(*inputs)
+        
+        # update = self.optimizer(surr_grads)
+
+        # self.update_params(update)
 
         print '*' * 20, 'Iteration ' + str(self.n_iterations), '*' * 20
         print 'Average Reward on Iteration:', self.iter_reward / float(ep+1)
@@ -132,7 +150,7 @@ class TRPO(object):
         print 'Time Elapsed: ', time() - self.start_time
         print 'KL Divergence: ', self.kl(None)
         print 'Surrogate Loss: ', surr_loss
-        print 'Entropy: ', self.entropy(None)
+        print 'Entropy: ', self.entropy(*inputs)[0]
         print '\n'
         self._reset_iter()
 
@@ -157,46 +175,58 @@ class TRPO(object):
         for p, u in zip(self.params, updates):
             K.set_value(p, K.get_value(p) + u)
 
-    def build_surrogate(self):
-        # Build graph of surrogate
-        a = K.placeholder(ndim=2)
-        s = K.placeholder(ndim=2)
-        a_means = K.placeholder(ndim=2)
-        a_logstds = K.placeholder(ndim=2)
-        advantages = K.placeholder(ndim=2)
-        new_logstds_shape = K.placeholder(ndim=2) # Just a 0-valued tensor of the right shape
+    def build_surrogate(self, variables):
+        # Build graph of surrogate loss
+        a, s, a_means, a_logstds, advantages, new_logstds_shape = variables
 
         # Computes the gauss_log_prob on sampled data.
         old_log_p_n = gauss_log_prob(a_means, a_logstds, a)
 
         # Here we compute the gauss_log_prob, but without sampling.
         new_a_means = self.policy.model(s)
-        new_a_logstds = (new_logstds_shape + self.action_logstd_param)
+        new_a_logstds = new_logstds_shape + self.action_logstd_param
         new_log_p_n = gauss_log_prob(new_a_means, new_a_logstds, a)
 
         # Compute the actual surrogate
         ratio = K.exp(new_log_p_n - old_log_p_n)
-        surr = -K.mean(ratio * advantages)
-        grad_surr = K.gradients(surr, self.params)
+        surr_graph = -K.mean(ratio * advantages)
+        grad_surr_graph = K.gradients(surr_graph, self.params)
 
-        inputs = [a, s, a_means, a_logstds, advantages, new_logstds_shape]
-        inputs += self.params
-	# TODO: Ridiculous that I have to run the function twice !
-        surr_graph = K.function(inputs, [surr,], [])
-	grad_surr_graph = K.function(inputs, grad_surr, [])
+        inputs = variables + self.params
+        # graph = K.function(inputs, [surr_graph, ] + grad_surr_graph)
+        graph = K.function(inputs, [surr_graph, ])
 
         def surrogate(states, actions, action_means, action_logstds, advantages):
-            # TODO: Allocating new np.arrays is slow. Re-use them !
+            # TODO: Allocating new np.arrays might be slow. 
             logstds = np.zeros(action_means.shape, dtype=DTYPE) + action_logstds
             new_logstds = np.zeros(action_means.shape, dtype=DTYPE)
             args = [actions, states, action_means, logstds,
                       advantages, new_logstds]
-            return surr_graph(args), grad_surr_graph(args)
+            res = graph(args)
+            return res[0], res[1:]
 
-        return surrogate
+        return surrogate, surr_graph, grad_surr_graph
 
-    def build_kl(self):
+    def build_kl(self, variables):
         return lambda x: 0.0
 
-    def build_entropy(self):
-        return lambda x: 0.0
+    def build_entropy(self, variables):
+        a, s, a_means, a_logstds, advantages, new_logstds_shape = variables
+
+        new_a_logstds = new_logstds_shape + self.action_logstd_param
+        ent_graph = K.mean(new_a_logstds + 0.5 * np.log(2*np.pi*np.e))
+        grad_ent_graph = K.gradients(ent_graph, self.params)
+
+        inputs = variables + self.params
+        # graph = K.function(inputs, [ent_graph, ] + grad_ent_graph)
+        graph = K.function(inputs, [ent_graph, ])
+
+        def entropy(states, actions, action_means, action_logstds, advantages):
+            logstds = np.zeros(action_means.shape, dtype=DTYPE) + action_logstds
+            new_logstds = np.zeros(action_means.shape, dtype=DTYPE)
+            args = [actions, states, action_means, logstds,
+                      advantages, new_logstds]
+            res = graph(args)
+            return res[0], res[1:]
+
+        return entropy, ent_graph, grad_ent_graph
