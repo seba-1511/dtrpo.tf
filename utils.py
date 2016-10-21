@@ -99,11 +99,3 @@ def convert_type(x):
 
 def discount(rewards, gamma):
     return signal.lfilter([1], [1, -gamma], rewards[::-1], axis=0)[::-1].reshape(-1, 1)
-
-
-def flatten(vectors):
-    shapes = []
-
-
-def unflatten(vector, shapes):
-    pass

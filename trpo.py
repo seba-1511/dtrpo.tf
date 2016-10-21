@@ -59,6 +59,7 @@ class TRPO(object):
         self.surrogate, self.surr_graph, self.grads_surr_graph = self.build_surrogate(inputs)
         self.entropy, self.ent_graph, self.grads_ent_graph = self.build_entropy(inputs)
         self.kl, self.kl_graph, self.grads_kl_graph = self.build_kl(inputs)
+        self.losses = K.function(inputs, [self.surr_graph, self.ent_graph, self.kl_graph])
 
         # TODO: Clean the following scrap
         tangents = [K.placeholder(shape=K.get_value(p).shape) for p in self.params]
@@ -159,7 +160,7 @@ class TRPO(object):
 
         # TODO: The following is to be cleaned
         #Begin of CG
-        cg_damping = 0.01
+        cg_damping = 1e-3
 
         surr_loss, surr_gradients = self.surrogate(*inputs)
         def fisher_vec_prod(vectors):
@@ -200,21 +201,47 @@ class TRPO(object):
         lm = np.sqrt(shs / self.delta)
         fullstep = stepdir / lm
         neggdotdir = - np.sum([np.sum(a*b) for a, b in zip(surr_gradients, stepdir)])
-
         # End of CG
-        
-        # update = self.optimizer(surr_grads)
 
-        # self.update_params(update)
+        # Begin Linesearch
+        def loss(params):
+            self.set_params(params)
+            return self.surrogate(*inputs)[0]
+
+        def linesearch(loss, params, fullstep, exp_improve_rate):
+            accept_ratio = 0.1
+            max_backtracks = 10
+            loss_val = loss(params)
+            for (i, stepfrac) in enumerate(0.5 ** np.arange(max_backtracks)):
+                new_params = [a + stepfrac * b for a, b in zip(params, fullstep)]
+                new_loss_val = loss(new_params)
+                actual_improve = loss_val - new_loss_val
+                exp_improve = stepfrac * exp_improve_rate
+                ratio = actual_improve / exp_improve
+                if ratio > accept_ratio and actual_improve > 0:
+                    return new_params
+            return params
+
+        params = K.batch_get_value(self.params)
+        update = linesearch(loss, params, fullstep, neggdotdir / lm)
+        self.set_params(update)
+        # End Linesearch
+        
+        a_logstds = np.zeros(means.shape, dtype=DTYPE) + logstds
+        new_logstds = np.zeros(means.shape, dtype=DTYPE)
+        args = [actions, states, means, a_logstds,
+                  advantage, new_logstds]
+
+        surr, ent, kl = self.losses(args)
 
         print '*' * 20, 'Iteration ' + str(self.n_iterations), '*' * 20
         print 'Average Reward on Iteration:', self.iter_reward / float(ep+1)
         print 'Total Steps: ', self.step
         print 'Total Epsiodes: ', self.episodes
         print 'Time Elapsed: ', time() - self.start_time
-        print 'KL Divergence: ', self.kl(*inputs)[0]
-        print 'Surrogate Loss: ', surr_loss
-        print 'Entropy: ', self.entropy(*inputs)[0]
+        print 'KL Divergence: ', kl
+        print 'Surrogate Loss: ', surr
+        print 'Entropy: ', ent
         print '\n'
         self._reset_iter()
 
@@ -233,7 +260,7 @@ class TRPO(object):
             pk.dump(params, f)
 
     def set_params(self, params):
-        K.batch_set_value(self.params, params)
+        K.batch_set_value(zip(self.params, params))
 
     def update_params(self, updates):
         for p, u in zip(self.params, updates):

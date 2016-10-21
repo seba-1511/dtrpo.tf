@@ -10,6 +10,29 @@ from utils import FCNet, numel
 from optimizers import ConjugateGradients
 
 
+class Filter:
+    def __init__(self, filter_mean=True):
+        self.m1 = 0
+        self.v = 0
+        self.n = 0.
+        self.filter_mean = filter_mean
+
+    def __call__(self, o):
+        self.m1 = self.m1 * (self.n / (self.n + 1)) + o    * 1/(1 + self.n)
+        self.v = self.v * (self.n / (self.n + 1)) + (o - self.m1)**2 * 1/(1 + self.n)
+        self.std = (self.v + 1e-6)**.5 # std
+        self.n += 1
+        if self.filter_mean: 
+            o1 =  (o - self.m1)/self.std
+        else:
+            o1 =  o/self.std
+        o1 = (o1 > 10) * 10 + (o1 < -10)* (-10) + (o1 < 10) * (o1 > -10) * o1 
+        return o1
+
+filter = Filter()
+filter_std = Filter()
+
+
 if __name__ == '__main__':
     env = gym.make(ENV)
     env.seed(RND_SEED)
@@ -23,9 +46,11 @@ if __name__ == '__main__':
     training_start = time()
     while agent.n_iterations < MAX_ITERATIONS:
         state = env.reset()
+        state = filter(state)
         for path in xrange(MAX_PATH_LENGTH):
             action, action_info = agent.act(state)
             next_state, reward, done, _ = env.step(action)
+            next_state = filter(next_state)
             if RENDER:
                 env.render()
             agent.learn(state, action, reward, next_state, done, action_info)
@@ -33,6 +58,7 @@ if __name__ == '__main__':
                 agent.save('./snapshots/trpo' + str(time()) + '.pkl')
             if done or agent.done():
                 break
+            state = next_state
         if agent.done():
             break
 
