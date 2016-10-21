@@ -4,29 +4,31 @@
 !_TAG_PROGRAM_NAME	Exuberant Ctags	//
 !_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
 !_TAG_PROGRAM_VERSION	5.9~svn20110310	//
-CUDA_VISIBLE_DEVICES	Makefile	/^	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python run.py$/;"	m
 ConjugateGradients	optimizers.py	/^class ConjugateGradients(object):$/;"	c
 DTYPE	variables.py	/^DTYPE = np.float32$/;"	v
 ENV	variables.py	/^ENV = 'InvertedPendulum-v1'$/;"	v
 EPSILON	variables.py	/^EPSILON = 1e-8$/;"	v
 FCNet	utils.py	/^class FCNet(object):$/;"	c
+FisherConjugateGradients	optimizers.py	/^class FisherConjugateGradients(object):$/;"	c
 LinearVF	utils.py	/^class LinearVF(object):$/;"	c
-MAX_ITERATIONS	variables.py	/^MAX_ITERATIONS = 30$/;"	v
+MAX_ITERATIONS	variables.py	/^MAX_ITERATIONS = 5$/;"	v
 MAX_PATH_LENGTH	variables.py	/^MAX_PATH_LENGTH = 1000$/;"	v
 RECORD	variables.py	/^RECORD = False$/;"	v
 RENDER	variables.py	/^RENDER = False$/;"	v
 RND_SEED	variables.py	/^RND_SEED = 1234$/;"	v
-SAVE_FREQ	variables.py	/^SAVE_FREQ = 10$/;"	v
+SAVE_FREQ	variables.py	/^SAVE_FREQ = 1000$/;"	v
 SpaceConversionEnv	space_conversion.py	/^class SpaceConversionEnv(Env):$/;"	c
 TEST_ITERATIONS	variables.py	/^TEST_ITERATIONS = 100$/;"	v
 TRPO	trpo.py	/^class TRPO(object):$/;"	c
 UPDATE_FREQ	variables.py	/^UPDATE_FREQ = 100 # aka timesteps per batch$/;"	v
 USE_GPU	variables.py	/^USE_GPU = False$/;"	v
-__call__	optimizers.py	/^    def __call__(self, params, grads, hessian=None, epoch=None):$/;"	m	class:ConjugateGradients	file:
+__call__	optimizers.py	/^    def __call__(self, grads, hessian=None, epoch=None):$/;"	m	class:ConjugateGradients	file:
+__call__	optimizers.py	/^    def __call__(self, grads, hessian=None, epoch=None):$/;"	m	class:FisherConjugateGradients	file:
 __call__	utils.py	/^    def __call__(self, states):$/;"	m	class:LinearVF	file:
 __call__	utils.py	/^    def __call__(self, x):$/;"	m	class:FCNet	file:
 __getattr__	space_conversion.py	/^    def __getattr__(self, field):$/;"	m	class:SpaceConversionEnv	file:
-__init__	optimizers.py	/^    def __init__(self, alpha=0.1, damping=0.1):$/;"	m	class:ConjugateGradients
+__init__	optimizers.py	/^    def __init__(self, alpha=0.001, damping=0.1):$/;"	m	class:ConjugateGradients
+__init__	optimizers.py	/^    def __init__(self, damping=0.01, max_iters=10, residual_tol=1e-10):$/;"	m	class:FisherConjugateGradients
 __init__	space_conversion.py	/^    def __init__(self, env, target_observation_space=None, target_action_space=None, verbose=False):$/;"	m	class:SpaceConversionEnv
 __init__	trpo.py	/^    def __init__(self, env, policy=None, optimizer=None, delta=0.01,$/;"	m	class:TRPO
 __init__	utils.py	/^    def __init__(self, W=None):$/;"	m	class:LinearVF
@@ -37,9 +39,10 @@ act	trpo.py	/^    def act(self, s):$/;"	m	class:TRPO
 action_space	space_conversion.py	/^    def action_space(self):$/;"	m	class:SpaceConversionEnv
 agent	run.py	/^    agent = TRPO(env, policy, optimizer=opt, update_freq=UPDATE_FREQ)$/;"	v
 box2discrete4obj	space_conversion.py	/^def box2discrete4obj(x, box_space, discrete_space):$/;"	f
-build_entropy	trpo.py	/^    def build_entropy(self):$/;"	m	class:TRPO
-build_kl	trpo.py	/^    def build_kl(self):$/;"	m	class:TRPO
-build_surrogate	trpo.py	/^    def build_surrogate(self):$/;"	m	class:TRPO
+build_computational_graphs	trpo.py	/^    def build_computational_graphs(self):$/;"	m	class:TRPO
+build_entropy	trpo.py	/^    def build_entropy(self, variables):$/;"	m	class:TRPO
+build_kl	trpo.py	/^    def build_kl(self, variables):$/;"	m	class:TRPO
+build_surrogate	trpo.py	/^    def build_surrogate(self, variables):$/;"	m	class:TRPO
 convert_type	utils.py	/^def convert_type(x):$/;"	f
 convertable	space_conversion.py	/^                   (Discrete, Box): (discrete2box4obj, box2discrete4obj, discrete2box4class)}$/;"	v	class:SpaceConversionEnv
 discount	utils.py	/^def discount(rewards, gamma):$/;"	f
@@ -47,13 +50,18 @@ discrete2box4class	space_conversion.py	/^def discrete2box4class(discrete_space):
 discrete2box4obj	space_conversion.py	/^def discrete2box4obj(x, discrete_space, box_space):$/;"	f
 discrete2tuple4obj	space_conversion.py	/^def discrete2tuple4obj(x, discrete_space, tuple_space):$/;"	f
 done	trpo.py	/^    def done(self):$/;"	m	class:TRPO
+entropy	trpo.py	/^        def entropy(states, actions, action_means, action_logstds, advantages):$/;"	f	function:TRPO.build_entropy
 env	run.py	/^    env = gym.make(ENV)$/;"	v
 extract_features	utils.py	/^    def extract_features(self, states):$/;"	m	class:LinearVF
+fisher_vec_prod	optimizers.py	/^    def fisher_vec_prod(p):$/;"	m	class:FisherConjugateGradients
+fisher_vec_prod	trpo.py	/^        def fisher_vec_prod(vectors):$/;"	f	function:TRPO.update
 gauss_log_prob	utils.py	/^def gauss_log_prob(means, logstds, x):$/;"	f
 half_log_2pi	utils.py	/^half_log_2pi = K.variable(np.log(2*np.pi) * 0.5)$/;"	v
 ident4obj	space_conversion.py	/^def ident4obj(x, old_space_obj, new_space_obj):$/;"	f
+kl	trpo.py	/^        def kl(states, actions, action_means, action_logstds, advantages):$/;"	f	function:TRPO.build_kl
 learn	trpo.py	/^    def learn(self, s0, a, r, s1, end_ep, action_info=None):$/;"	m	class:TRPO
 learn	utils.py	/^    def learn(self, list_states, list_returns):$/;"	m	class:LinearVF
+load	trpo.py	/^    def load(self, path):$/;"	m	class:TRPO
 n_iterations	trpo.py	/^    def n_iterations(self):$/;"	m	class:TRPO
 numel	utils.py	/^def numel(x):$/;"	f
 observation_space	space_conversion.py	/^    def observation_space(self):$/;"	m	class:SpaceConversionEnv
@@ -62,7 +70,7 @@ params	trpo.py	/^    def params(self):$/;"	m	class:TRPO
 params	utils.py	/^    def params(self):$/;"	m	class:FCNet
 policy	run.py	/^    policy = FCNet(numel(env.observation_space),$/;"	v
 reset	space_conversion.py	/^    def reset(self, **kwargs):$/;"	m	class:SpaceConversionEnv
-save	trpo.py	/^    def save(self, name):$/;"	m	class:TRPO
+save	trpo.py	/^    def save(self, path):$/;"	m	class:TRPO
 set_params	trpo.py	/^    def set_params(self, params):$/;"	m	class:TRPO
 set_params	utils.py	/^    def set_params(self, update):$/;"	m	class:FCNet
 state	run.py	/^        state = env.reset()$/;"	v
@@ -75,5 +83,5 @@ training_end	run.py	/^    training_end = time()$/;"	v
 training_start	run.py	/^    training_start = time()$/;"	v
 tuple2discrete4class	space_conversion.py	/^def tuple2discrete4class(tuple_space):$/;"	f
 tuple2discrete4obj	space_conversion.py	/^def tuple2discrete4obj(x, old_space_obj, new_space_obj):$/;"	f
-update	optimizers.py	/^    def update(self, grads):$/;"	m	class:ConjugateGradients
 update	trpo.py	/^    def update(self):$/;"	m	class:TRPO
+update_params	trpo.py	/^    def update_params(self, updates):$/;"	m	class:TRPO

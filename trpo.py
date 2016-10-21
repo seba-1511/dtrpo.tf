@@ -60,6 +60,24 @@ class TRPO(object):
         self.entropy, self.ent_graph, self.grads_ent_graph = self.build_entropy(inputs)
         self.kl, self.kl_graph, self.grads_kl_graph = self.build_kl(inputs)
 
+        # TODO: Clean the following scrap
+        tangents = [K.placeholder(shape=K.get_value(p).shape) for p in self.params]
+        new_a_means = self.policy.model(s)
+        new_a_logstds = new_logstds_shape + self.action_logstd_param
+        stop_means, stop_logstds = K.stop_gradient(new_a_means), K.stop_gradient(new_a_logstds)
+
+        # NOTE: Following seems fishy. (cf: Sutskever's code, utils.py:gauss_selfKL_firstfixed())
+        stop_var = K.exp(2 * stop_logstds)
+        var = K.exp(2 * new_a_logstds)
+        temp = (stop_var + (stop_means - new_a_means)**2) / (2*var)
+        kl_first_graph = K.mean(new_a_logstds - stop_logstds + temp - 0.5)
+        grads_kl_first = K.gradients(kl_first_graph, self.params)
+
+        gvp_graph = [K.sum(g * t) for g, t in zip(grads_kl_first, tangents)]
+        grads_gvp_graph = K.gradients(gvp_graph, self.params)
+        # self.grads_gvp = K.function(inputs + tangents + self.params, [kl_first_graph, ])
+        self.grads_gvp = K.function(inputs + tangents + self.params, grads_gvp_graph)
+
 
     def _reset_iter(self):
         self.iter_reward = 0
@@ -137,7 +155,53 @@ class TRPO(object):
 
         inputs = [states, actions, means, logstds, advantage]
 
-        # surr_loss, _ = self.surrogate(*inputs)
+
+
+        # TODO: The following is to be cleaned
+        #Begin of CG
+        cg_damping = 0.01
+
+        surr_loss, surr_gradients = self.surrogate(*inputs)
+        def fisher_vec_prod(vectors):
+            a_logstds = np.zeros(means.shape, dtype=DTYPE) + logstds
+            new_logstds = np.zeros(means.shape, dtype=DTYPE)
+            args = [actions, states, means, a_logstds,
+                      advantage, new_logstds]
+
+            res = self.grads_gvp(args + vectors)
+            return [r + (p * cg_damping) for r, p in zip(res, vectors)]
+
+        # test = fisher_vec_prod(surr_gradients)
+
+        def conjgrad(fvp, grads, cg_iters=10, residual_tol=1e-10):
+            p = [np.copy(g) for g in grads]
+            r = [np.copy(g) for g in grads]
+            x = [np.zeros_like(g) for g in grads]
+            rdotr = np.sum([np.sum(g**2) for g in grads])
+            for i in xrange(cg_iters):
+                z = fvp(p)
+                pdotz = np.sum([np.sum(a*b) for a, b in zip(p, z)])
+                v = rdotr / pdotz
+                x = [a + (v*b) for a, b in zip(x, p)]
+                r = [a - (v*b) for a, b in zip(r, z)]
+                newrdotr = np.sum([np.sum(g**2) for g in grads])
+                mu = newrdotr / rdotr
+                p = [a + mu * b for a, b in zip(r, p)]
+                rdotr = newrdotr
+                if rdotr < residual_tol:
+                    break
+                return x
+
+        stepdir = conjgrad(fisher_vec_prod, surr_gradients)
+        dirdotfvp = np.sum([np.sum(a*b) for a, b in zip(stepdir, fisher_vec_prod(stepdir))])
+        shs = 0.5 * dirdotfvp
+        assert shs > 0
+
+        lm = np.sqrt(shs / self.delta)
+        fullstep = stepdir / lm
+        neggdotdir = - np.sum([np.sum(a*b) for a, b in zip(surr_gradients, stepdir)])
+
+        # End of CG
         
         # update = self.optimizer(surr_grads)
 
@@ -149,7 +213,7 @@ class TRPO(object):
         print 'Total Epsiodes: ', self.episodes
         print 'Time Elapsed: ', time() - self.start_time
         print 'KL Divergence: ', self.kl(*inputs)[0]
-        print 'Surrogate Loss: ', self.surrogate(*inputs)[0]
+        print 'Surrogate Loss: ', surr_loss
         print 'Entropy: ', self.entropy(*inputs)[0]
         print '\n'
         self._reset_iter()
@@ -193,8 +257,8 @@ class TRPO(object):
         grad_surr_graph = K.gradients(surr_graph, self.params)
 
         inputs = variables + self.params
-        # graph = K.function(inputs, [surr_graph, ] + grad_surr_graph)
-        graph = K.function(inputs, [surr_graph, ])
+        graph = K.function(inputs, [surr_graph, ] + grad_surr_graph)
+        # graph = K.function(inputs, [surr_graph, ])
 
         def surrogate(states, actions, action_means, action_logstds, advantages):
             # TODO: Allocating new np.arrays might be slow. 

@@ -83,7 +83,7 @@ class LinearVF(object):
 
 def gauss_log_prob(means, logstds, x):
     var = K.exp(2 * logstds)
-    gp = -((x - means)**2) / (2 * var) - half_log_2pi - logstds
+    gp = (-(x - means)**2) / (2 * var) - half_log_2pi - logstds
     return gp
 
 
@@ -98,6 +98,12 @@ def convert_type(x):
 
 
 def discount(rewards, gamma):
-    # return signal.lfilter([1], [1, -gamma], rewards[::-1], axis=0)[::-1].reshape(1, -1)
     return signal.lfilter([1], [1, -gamma], rewards[::-1], axis=0)[::-1].reshape(-1, 1)
 
+
+def flatten(vectors):
+    shapes = []
+
+
+def unflatten(vector, shapes):
+    pass
