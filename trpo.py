@@ -5,7 +5,7 @@ import cPickle as pk
 from keras import backend as K
 from time import time
 from variables import DTYPE, EPSILON
-from utils import convert_type, discount, LinearVF, gauss_log_prob, numel
+from utils import convert_type, discount, LinearVF, gauss_log_prob, numel, dot_not_flat
 
 
 class TRPO(object):
@@ -83,9 +83,9 @@ class TRPO(object):
     def _reset_iter(self):
         self.iter_reward = 0
         self.iter_n_ep = 0
+        self.iter_actions = [[], ]
         self.iter_states = [[], ]
         self.iter_rewards = [[], ]
-        self.iter_actions = [[], ]
         self.iter_action_mean = [[], ]
         self.iter_action_logstd = [[], ]
 
@@ -158,11 +158,12 @@ class TRPO(object):
 
 
 
-        # TODO: The following is to be cleaned
+        # TODO: The following is to be cleaned, most of it can be made into a graph
         #Begin of CG
         cg_damping = 1e-3
 
         surr_loss, surr_gradients = self.surrogate(*inputs)
+        print 'init surr_loss: ', surr_loss
         def fisher_vec_prod(vectors):
             a_logstds = np.zeros(means.shape, dtype=DTYPE) + logstds
             new_logstds = np.zeros(means.shape, dtype=DTYPE)
@@ -172,13 +173,12 @@ class TRPO(object):
             res = self.grads_gvp(args + vectors)
             return [r + (p * cg_damping) for r, p in zip(res, vectors)]
 
-        # test = fisher_vec_prod(surr_gradients)
-
         def conjgrad(fvp, grads, cg_iters=10, residual_tol=1e-10):
             p = [np.copy(g) for g in grads]
             r = [np.copy(g) for g in grads]
             x = [np.zeros_like(g) for g in grads]
             rdotr = np.sum([np.sum(g**2) for g in grads])
+            rdotr = dot_not_flat(grads, grads)
             for i in xrange(cg_iters):
                 z = fvp(p)
                 pdotz = np.sum([np.sum(a*b) for a, b in zip(p, z)])
@@ -194,15 +194,18 @@ class TRPO(object):
                 return x
 
         grads = [-g for g in surr_gradients]
+        print 'gdotg: ', dot_not_flat(grads, grads)
         stepdir = conjgrad(fisher_vec_prod, grads)
-        dirdotfvp = np.sum([np.sum(a*b) for a, b in zip(stepdir, fisher_vec_prod(stepdir))])
-        shs = 0.5 * dirdotfvp
+        print 'dirdotdir: ', dot_not_flat(stepdir, stepdir)
+        shs = 0.5 * dot_not_flat(stepdir, fisher_vec_prod(stepdir))
+        print 'shs: ', shs
         assert shs > 0
 
         lm = np.sqrt(shs / self.delta)
-        fullstep = stepdir / lm
+        print 'lm: ', lm
         fullstep = [s / lm for s in stepdir]
-        neggdotdir = - np.sum([np.sum(a*b) for a, b in zip(surr_gradients, stepdir)])
+        neggdotdir = -dot_not_flat(surr_gradients, stepdir)
+        print 'neggdotdir: ', neggdotdir
         # End of CG
 
         # Begin Linesearch
@@ -225,8 +228,11 @@ class TRPO(object):
             return params
 
         params = K.batch_get_value(self.params)
+        print 'params dot params', dot_not_flat(params, params)
         update = linesearch(loss, params, fullstep, neggdotdir / lm)
-        self.update_params(update)
+        # Need that line, since the linesearch modifies your parameters
+        update = [p + u for p, u in zip(params, update)]
+        self.set_params(update)
         # End Linesearch
         
         a_logstds = np.zeros(means.shape, dtype=DTYPE) + logstds
@@ -263,10 +269,12 @@ class TRPO(object):
 
     def set_params(self, params):
         K.batch_set_value(zip(self.params, params))
+        self.np_action_logstd_param = K.get_value(self.action_logstd_param)
 
     def update_params(self, updates):
         for p, u in zip(self.params, updates):
             K.set_value(p, K.get_value(p) + u)
+        self.np_action_logstd_param = K.get_value(self.action_logstd_param)
 
     def build_surrogate(self, variables):
         # Build graph of surrogate loss
@@ -292,6 +300,7 @@ class TRPO(object):
         def surrogate(states, actions, action_means, action_logstds, advantages):
             # TODO: Allocating new np.arrays might be slow. 
             logstds = np.zeros(action_means.shape, dtype=DTYPE) + action_logstds
+            print logstds
             new_logstds = np.zeros(action_means.shape, dtype=DTYPE)
             args = [actions, states, action_means, logstds,
                       advantages, new_logstds]

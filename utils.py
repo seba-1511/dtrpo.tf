@@ -28,9 +28,9 @@ class FCNet(object):
         self.layers = []
         x = data = Input(shape=in_dim)
         for l in layer_sizes:
-            x = Dense(l, activation='relu')(x)
+            x = Dense(l, activation='relu', init='glorot_normal')(x)
             self.layers.append(x)
-        x = Dense(out_dim, activation='linear')(x)
+        x = Dense(out_dim, activation='linear', init='glorot_normal')(x)
         self.layers.append(x)
         self.model = Model(input=data, output=x)
         self.net = K.function([data, ], [self.model(data)], [])
@@ -99,3 +99,6 @@ def convert_type(x):
 
 def discount(rewards, gamma):
     return signal.lfilter([1], [1, -gamma], rewards[::-1], axis=0)[::-1].reshape(-1, 1)
+
+def dot_not_flat(a, b):
+    return np.sum([np.sum(x*y) for x, y in zip(a, b)])
