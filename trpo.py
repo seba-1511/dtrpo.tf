@@ -193,13 +193,15 @@ class TRPO(object):
                     break
                 return x
 
-        stepdir = conjgrad(fisher_vec_prod, surr_gradients)
+        grads = [-g for g in surr_gradients]
+        stepdir = conjgrad(fisher_vec_prod, grads)
         dirdotfvp = np.sum([np.sum(a*b) for a, b in zip(stepdir, fisher_vec_prod(stepdir))])
         shs = 0.5 * dirdotfvp
         assert shs > 0
 
         lm = np.sqrt(shs / self.delta)
         fullstep = stepdir / lm
+        fullstep = [s / lm for s in stepdir]
         neggdotdir = - np.sum([np.sum(a*b) for a, b in zip(surr_gradients, stepdir)])
         # End of CG
 
@@ -224,7 +226,7 @@ class TRPO(object):
 
         params = K.batch_get_value(self.params)
         update = linesearch(loss, params, fullstep, neggdotdir / lm)
-        self.set_params(update)
+        self.update_params(update)
         # End Linesearch
         
         a_logstds = np.zeros(means.shape, dtype=DTYPE) + logstds

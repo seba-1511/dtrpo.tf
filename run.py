@@ -29,8 +29,7 @@ class Filter:
         o1 = (o1 > 10) * 10 + (o1 < -10)* (-10) + (o1 < 10) * (o1 > -10) * o1 
         return o1
 
-filter = Filter()
-filter_std = Filter()
+f = Filter()
 
 
 if __name__ == '__main__':
@@ -46,15 +45,15 @@ if __name__ == '__main__':
     training_start = time()
     while agent.n_iterations < MAX_ITERATIONS:
         state = env.reset()
-        state = filter(state)
+        state = f(state)
         for path in xrange(MAX_PATH_LENGTH):
             action, action_info = agent.act(state)
             next_state, reward, done, _ = env.step(action)
-            next_state = filter(next_state)
+            next_state = f(next_state)
             if RENDER:
                 env.render()
             agent.learn(state, action, reward, next_state, done, action_info)
-            if agent.n_iterations % SAVE_FREQ == 1:
+            if agent.n_iterations % SAVE_FREQ == 0:
                 agent.save('./snapshots/trpo' + str(time()) + '.pkl')
             if done or agent.done():
                 break
