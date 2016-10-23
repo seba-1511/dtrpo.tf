@@ -2,6 +2,7 @@
 
 import numpy as np
 import cPickle as pk
+import tensorflow as tf
 from keras import backend as K
 from time import time
 from variables import DTYPE, EPSILON
@@ -31,7 +32,7 @@ class TRPO(object):
         self.episodes = 0
         self.vf = LinearVF()
         self._reset_iter()
-        self.np_action_logstd_param = 0.01 * np.random.randn(1, policy.out_dim).astype(DTYPE)
+        self.np_action_logstd_param = convert_type(0.01 * np.random.randn(1, policy.out_dim))
         self.action_logstd_param = K.variable(self.np_action_logstd_param)
 
         self.build_computational_graphs()
@@ -97,8 +98,8 @@ class TRPO(object):
         """
         s = convert_type(s)
         s = s.reshape((1, -1))
-        action_mean = self.policy(s)
-        out = action_mean 
+        action_mean = convert_type(self.policy(s))
+        out = np.copy(action_mean) 
         out += (np.exp(self.np_action_logstd_param) *
                 np.random.randn(*self.np_action_logstd_param.shape))
         return out[0], {'action_mean': action_mean,
@@ -128,35 +129,33 @@ class TRPO(object):
             self.update()
 
     def update(self):
-        baselines = []
+        # baselines = []
         returns = []
         advantages = []
 
         for ep in xrange(self.iter_n_ep+1):
             r = discount(self.iter_rewards[ep], self.gamma)
             b = self.vf(self.iter_states[ep])
-            baselines.append(b)
+            # baselines.append(b)
             returns.append(r)
             advantages.append(r - b)
 
         # Fit baseline for next iter
         self.vf.learn(self.iter_states, returns)
 
-        # Standardize A() to have mean=0, std=1
-        advantage = np.concatenate(advantages)
-        advantage -= advantage.mean()
-        advantage /= (advantage.std() + EPSILON)
-
         states = np.concatenate(self.iter_states)
         actions = np.concatenate(self.iter_actions)
         actions = convert_type(actions)
-        advantage = convert_type(advantage)
         means = np.concatenate(self.iter_action_mean).reshape(states.shape[0], -1)
         logstds = np.concatenate(self.iter_action_logstd).reshape(states.shape[0], -1)
 
-        inputs = [states, actions, means, logstds, advantage]
+        # Standardize A() to have mean=0, std=1
+        advantage = np.concatenate(advantages).reshape(states.shape[0], -1)
+        advantage -= advantage.mean()
+        advantage /= (advantage.std() + EPSILON)
+        advantage = convert_type(advantage)
 
-
+        inputs = [actions, states, means, logstds, advantage]
 
         # TODO: The following is to be cleaned, most of it can be made into a graph
         #Begin of CG
@@ -191,7 +190,7 @@ class TRPO(object):
                 rdotr = newrdotr
                 if rdotr < residual_tol:
                     break
-                return x
+            return x
 
         grads = [-g for g in surr_gradients]
         print 'gdotg: ', dot_not_flat(grads, grads)
@@ -204,7 +203,7 @@ class TRPO(object):
         lm = np.sqrt(shs / self.delta)
         print 'lm: ', lm
         fullstep = [s / lm for s in stepdir]
-        neggdotdir = -dot_not_flat(surr_gradients, stepdir)
+        neggdotdir = dot_not_flat(grads, stepdir)
         print 'neggdotdir: ', neggdotdir
         # End of CG
 
@@ -214,11 +213,13 @@ class TRPO(object):
             return self.surrogate(*inputs)[0]
 
         def linesearch(loss, params, fullstep, exp_improve_rate):
+            # TODO: exp_improve_rate can't be negative.
+            print 'exp_improve_rate: ', exp_improve_rate
             accept_ratio = 0.1
             max_backtracks = 10
             loss_val = loss(params)
             for (i, stepfrac) in enumerate(0.5 ** np.arange(max_backtracks)):
-                new_params = [a + stepfrac * b for a, b in zip(params, fullstep)]
+                new_params = [a + (stepfrac * b) for a, b in zip(params, fullstep)]
                 new_loss_val = loss(new_params)
                 actual_improve = loss_val - new_loss_val
                 exp_improve = stepfrac * exp_improve_rate
@@ -228,7 +229,7 @@ class TRPO(object):
             return params
 
         params = K.batch_get_value(self.params)
-        print 'params dot params', dot_not_flat(params, params)
+        print 'params dot params', dot_not_flat(params, params), '\n\n'
         update = linesearch(loss, params, fullstep, neggdotdir / lm)
         # Need that line, since the linesearch modifies your parameters
         update = [p + u for p, u in zip(params, update)]
@@ -237,8 +238,7 @@ class TRPO(object):
         
         a_logstds = np.zeros(means.shape, dtype=DTYPE) + logstds
         new_logstds = np.zeros(means.shape, dtype=DTYPE)
-        args = [actions, states, means, a_logstds,
-                  advantage, new_logstds]
+        args = [actions, states, means, a_logstds, advantage, new_logstds]
 
         surr, ent, kl = self.losses(args)
 
@@ -283,13 +283,17 @@ class TRPO(object):
         # Computes the gauss_log_prob on sampled data.
         old_log_p_n = gauss_log_prob(a_means, a_logstds, a)
 
-        # Here we compute the gauss_log_prob, but without sampling.
+        # Here we compute the gauss_log_prob, but wrt current params
         new_a_means = self.policy.model(s)
         new_a_logstds = new_logstds_shape + self.action_logstd_param
         new_log_p_n = gauss_log_prob(new_a_means, new_a_logstds, a)
 
         # Compute the actual surrogate
         ratio = K.exp(new_log_p_n - old_log_p_n)
+        advantages = K.reshape(advantages, (-1, ))
+        advantages = tf.Print(advantages, [tf.reduce_mean(advantages)], 'advantages: ')
+        ratio = tf.Print(ratio, [tf.reduce_mean(ratio)], 'ratio: ')
+
         surr_graph = -K.mean(ratio * advantages)
         grad_surr_graph = K.gradients(surr_graph, self.params)
 
@@ -297,13 +301,12 @@ class TRPO(object):
         graph = K.function(inputs, [surr_graph, ] + grad_surr_graph)
         # graph = K.function(inputs, [surr_graph, ])
 
-        def surrogate(states, actions, action_means, action_logstds, advantages):
+        def surrogate(actions, states, action_means, action_logstds, advantages):
             # TODO: Allocating new np.arrays might be slow. 
             logstds = np.zeros(action_means.shape, dtype=DTYPE) + action_logstds
-            print logstds
             new_logstds = np.zeros(action_means.shape, dtype=DTYPE)
             args = [actions, states, action_means, logstds,
-                      advantages, new_logstds]
+                    advantages, new_logstds]
             res = graph(args)
             return res[0], res[1:]
 
@@ -326,7 +329,7 @@ class TRPO(object):
         # graph = K.function(inputs, [kl_graph, ] + grad_kl_graph)
         graph = K.function(inputs, [kl_graph, ])
 
-        def kl(states, actions, action_means, action_logstds, advantages):
+        def kl(actions, states, action_means, action_logstds, advantages):
             logstds = np.zeros(action_means.shape, dtype=DTYPE) + action_logstds
             new_logstds = np.zeros(action_means.shape, dtype=DTYPE)
             args = [actions, states, action_means, logstds,
@@ -347,7 +350,7 @@ class TRPO(object):
         # graph = K.function(inputs, [ent_graph, ] + grad_ent_graph)
         graph = K.function(inputs, [ent_graph, ])
 
-        def entropy(states, actions, action_means, action_logstds, advantages):
+        def entropy(actions, states, action_means, action_logstds, advantages):
             logstds = np.zeros(action_means.shape, dtype=DTYPE) + action_logstds
             new_logstds = np.zeros(action_means.shape, dtype=DTYPE)
             args = [actions, states, action_means, logstds,

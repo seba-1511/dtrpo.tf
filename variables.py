@@ -8,14 +8,14 @@ RECORD = False
 ENV = 'InvertedPendulum-v1'
 # ENV = 'Ant-v1'
 DTYPE = np.float32
-RND_SEED = 1234
+RND_SEED = 1
 EPSILON = 1e-8
 
 
-SAVE_FREQ = 100000000
+SAVE_FREQ = 1000
 # UPDATE_FREQ = 100 # aka timesteps per batch
 UPDATE_FREQ = 20000 # aka timesteps per batch
-MAX_ITERATIONS = 500
+MAX_ITERATIONS = 4
 # MAX_PATH_LENGTH = 1000
 MAX_PATH_LENGTH = 20000
 TEST_ITERATIONS = 100

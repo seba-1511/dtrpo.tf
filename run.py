@@ -53,11 +53,11 @@ if __name__ == '__main__':
             if RENDER:
                 env.render()
             agent.learn(state, action, reward, next_state, done, action_info)
-            if agent.n_iterations % SAVE_FREQ == 0:
-                agent.save('./snapshots/trpo' + str(time()) + '.pkl')
             if done or agent.done():
                 break
             state = next_state
+        if agent.n_iterations % SAVE_FREQ == 0:
+            agent.save('./snapshots/trpo' + str(time()) + '.pkl')
         if agent.done():
             break
 

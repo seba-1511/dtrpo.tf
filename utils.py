@@ -28,9 +28,9 @@ class FCNet(object):
         self.layers = []
         x = data = Input(shape=in_dim)
         for l in layer_sizes:
-            x = Dense(l, activation='relu', init='glorot_normal')(x)
+            x = Dense(l, activation='relu', init='glorot_uniform')(x)
             self.layers.append(x)
-        x = Dense(out_dim, activation='linear', init='glorot_normal')(x)
+        x = Dense(out_dim, activation='linear', init='glorot_uniform')(x)
         self.layers.append(x)
         self.model = Model(input=data, output=x)
         self.net = K.function([data, ], [self.model(data)], [])
@@ -68,7 +68,7 @@ class LinearVF(object):
         return np.dot(features, self.W)
 
     def learn(self, list_states, list_returns):
-        # TODO: Implement lstsq on GPU
+        # TODO: Implement lstsq on GPU ?
         features = [self.extract_features(states) for states in list_states]
         features = np.concatenate(features)
         returns = np.concatenate(list_returns)
@@ -78,13 +78,14 @@ class LinearVF(object):
                 features.T.dot(features) + lamb * np.identity(n_col),
                 features.T.dot(returns)
         )[0]
-        self.W = np.array(W, DTYPE)
+        self.W = convert_type(W)
 
 
 def gauss_log_prob(means, logstds, x):
     var = K.exp(2 * logstds)
-    gp = (-(x - means)**2) / (2 * var) - half_log_2pi - logstds
-    return gp
+    # gp = (-(x - means)**2) / (2 * var) - half_log_2pi - logstds
+    gp = (-(x - means)**2) / (2 * var) - 0.5*K.log(2 * np.pi) - logstds
+    return K.sum(gp, axis=1)
 
 
 def numel(x):
