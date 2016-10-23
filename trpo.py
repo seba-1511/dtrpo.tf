@@ -162,7 +162,6 @@ class TRPO(object):
         cg_damping = 1e-3
 
         surr_loss, surr_gradients = self.surrogate(*inputs)
-        print 'init surr_loss: ', surr_loss
         def fisher_vec_prod(vectors):
             a_logstds = np.zeros(means.shape, dtype=DTYPE) + logstds
             new_logstds = np.zeros(means.shape, dtype=DTYPE)
@@ -193,18 +192,13 @@ class TRPO(object):
             return x
 
         grads = [-g for g in surr_gradients]
-        print 'gdotg: ', dot_not_flat(grads, grads)
         stepdir = conjgrad(fisher_vec_prod, grads)
-        print 'dirdotdir: ', dot_not_flat(stepdir, stepdir)
         shs = 0.5 * dot_not_flat(stepdir, fisher_vec_prod(stepdir))
-        print 'shs: ', shs
         assert shs > 0
 
         lm = np.sqrt(shs / self.delta)
-        print 'lm: ', lm
         fullstep = [s / lm for s in stepdir]
         neggdotdir = dot_not_flat(grads, stepdir)
-        print 'neggdotdir: ', neggdotdir
         # End of CG
 
         # Begin Linesearch
@@ -213,22 +207,21 @@ class TRPO(object):
             return self.surrogate(*inputs)[0]
 
         def linesearch(loss, params, fullstep, exp_improve_rate):
+            assert exp_improve_rate > 0
             accept_ratio = 0.1
             max_backtracks = 10
             loss_val = loss(params)
             for (i, stepfrac) in enumerate(0.5 ** np.arange(max_backtracks)):
-                new_params = [a.copy() + (stepfrac * b) for a, b in zip(params, fullstep)]
+                new_params = [a + (stepfrac * b) for a, b in zip(params, fullstep)]
                 new_loss_val = loss(new_params)
                 actual_improve = loss_val - new_loss_val
                 exp_improve = stepfrac * exp_improve_rate
                 ratio = actual_improve / exp_improve
-                print 'ratio: ', ratio
                 if ratio > accept_ratio and actual_improve > 0:
                     return new_params
             return params
 
         params = K.batch_get_value(self.params)
-        print 'params dot params', dot_not_flat(params, params), '\n\n'
         update = linesearch(loss, params, fullstep, neggdotdir / lm)
         new_params = [u + f for u, f in zip(update, fullstep)]
         self.set_params(update)
@@ -289,8 +282,6 @@ class TRPO(object):
         # Compute the actual surrogate
         ratio = K.exp(new_log_p_n - old_log_p_n)
         advantages = K.reshape(advantages, (-1, ))
-        # advantages = tf.Print(advantages, [tf.reduce_mean(advantages)], 'advantages: ')
-        # ratio = tf.Print(ratio, [tf.reduce_mean(ratio)], 'ratio: ')
 
         surr_graph = -K.mean(ratio * advantages)
         grad_surr_graph = K.gradients(surr_graph, self.params)
