@@ -213,17 +213,16 @@ class TRPO(object):
             return self.surrogate(*inputs)[0]
 
         def linesearch(loss, params, fullstep, exp_improve_rate):
-            # TODO: exp_improve_rate can't be negative.
-            print 'exp_improve_rate: ', exp_improve_rate
             accept_ratio = 0.1
             max_backtracks = 10
             loss_val = loss(params)
             for (i, stepfrac) in enumerate(0.5 ** np.arange(max_backtracks)):
-                new_params = [a + (stepfrac * b) for a, b in zip(params, fullstep)]
+                new_params = [a.copy() + (stepfrac * b) for a, b in zip(params, fullstep)]
                 new_loss_val = loss(new_params)
                 actual_improve = loss_val - new_loss_val
                 exp_improve = stepfrac * exp_improve_rate
                 ratio = actual_improve / exp_improve
+                print 'ratio: ', ratio
                 if ratio > accept_ratio and actual_improve > 0:
                     return new_params
             return params
@@ -231,8 +230,7 @@ class TRPO(object):
         params = K.batch_get_value(self.params)
         print 'params dot params', dot_not_flat(params, params), '\n\n'
         update = linesearch(loss, params, fullstep, neggdotdir / lm)
-        # Need that line, since the linesearch modifies your parameters
-        update = [p + u for p, u in zip(params, update)]
+        new_params = [u + f for u, f in zip(update, fullstep)]
         self.set_params(update)
         # End Linesearch
         
@@ -291,8 +289,8 @@ class TRPO(object):
         # Compute the actual surrogate
         ratio = K.exp(new_log_p_n - old_log_p_n)
         advantages = K.reshape(advantages, (-1, ))
-        advantages = tf.Print(advantages, [tf.reduce_mean(advantages)], 'advantages: ')
-        ratio = tf.Print(ratio, [tf.reduce_mean(ratio)], 'ratio: ')
+        # advantages = tf.Print(advantages, [tf.reduce_mean(advantages)], 'advantages: ')
+        # ratio = tf.Print(ratio, [tf.reduce_mean(ratio)], 'ratio: ')
 
         surr_graph = -K.mean(ratio * advantages)
         grad_surr_graph = K.gradients(surr_graph, self.params)

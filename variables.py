@@ -8,7 +8,7 @@ RECORD = False
 ENV = 'InvertedPendulum-v1'
 # ENV = 'Ant-v1'
 DTYPE = np.float32
-RND_SEED = 1
+RND_SEED = 1234
 EPSILON = 1e-8
 
 
