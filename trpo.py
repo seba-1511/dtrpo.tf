@@ -165,17 +165,18 @@ class TRPO(object):
         def fisher_vec_prod(vectors):
             a_logstds = np.zeros(means.shape, dtype=DTYPE) + logstds
             new_logstds = np.zeros(means.shape, dtype=DTYPE)
-            args = [actions, states, means, a_logstds,
-                      advantage, new_logstds]
+            args = [actions, states, means, a_logstds, advantage, new_logstds]
 
             res = self.grads_gvp(args + vectors)
+            # GRAPH: directly get grads_graph and extend it with the following
             return [r + (p * cg_damping) for r, p in zip(res, vectors)]
 
         def conjgrad(fvp, grads, cg_iters=10, residual_tol=1e-10):
             p = [np.copy(g) for g in grads]
             r = [np.copy(g) for g in grads]
             x = [np.zeros_like(g) for g in grads]
-            rdotr = np.sum([np.sum(g**2) for g in grads])
+            # GRAPH: extend fvp, control with tf.cond, inputs are p, r, x
+            rdotr = dot_not_flat(r, r)
             rdotr = dot_not_flat(grads, grads)
             for i in xrange(cg_iters):
                 z = fvp(p)
@@ -193,12 +194,14 @@ class TRPO(object):
 
         grads = [-g for g in surr_gradients]
         stepdir = conjgrad(fisher_vec_prod, grads)
+        # GRAPH: stepdir is a graph, extend it to shs
         shs = 0.5 * dot_not_flat(stepdir, fisher_vec_prod(stepdir))
         assert shs > 0
 
         lm = np.sqrt(shs / self.delta)
         fullstep = [s / lm for s in stepdir]
         neggdotdir = dot_not_flat(grads, stepdir)
+        # GRAPH: All 5 lines above can be converted to a graph
         # End of CG
 
         # Begin Linesearch
@@ -207,7 +210,7 @@ class TRPO(object):
             return self.surrogate(*inputs)[0]
 
         def linesearch(loss, params, fullstep, exp_improve_rate):
-            assert exp_improve_rate > 0
+            # GRAPH: graph the following with tf.cond
             accept_ratio = 0.1
             max_backtracks = 10
             loss_val = loss(params)
@@ -224,7 +227,7 @@ class TRPO(object):
         params = K.batch_get_value(self.params)
         update = linesearch(loss, params, fullstep, neggdotdir / lm)
         new_params = [u + f for u, f in zip(update, fullstep)]
-        self.set_params(update)
+        self.set_params(new_params)
         # End Linesearch
         
         a_logstds = np.zeros(means.shape, dtype=DTYPE) + logstds
@@ -234,7 +237,7 @@ class TRPO(object):
         surr, ent, kl = self.losses(args)
 
         print '*' * 20, 'Iteration ' + str(self.n_iterations), '*' * 20
-        print 'Average Reward on Iteration:', self.iter_reward / float(ep+1)
+        print 'Average Reward on Iteration:', self.iter_reward / float(self.iter_n_ep+1)
         print 'Total Steps: ', self.step
         print 'Total Epsiodes: ', self.episodes
         print 'Time Elapsed: ', time() - self.start_time

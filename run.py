@@ -50,14 +50,15 @@ if __name__ == '__main__':
             action, action_info = agent.act(state)
             next_state, reward, done, _ = env.step(action)
             next_state = f(next_state)
+            # if RENDER or agent.n_iterations == MAX_ITERATIONS - 1:
             if RENDER:
                 env.render()
             agent.learn(state, action, reward, next_state, done, action_info)
             if done or agent.done():
                 break
             state = next_state
-        # if agent.n_iterations % SAVE_FREQ == 0:
-            # agent.save('./snapshots/trpo' + str(time()) + '.pkl')
+        if agent.n_iterations % SAVE_FREQ == 0:
+            agent.save('./snapshots/trpo' + str(time()) + '.pkl')
         if agent.done():
             break
 
@@ -70,9 +71,11 @@ if __name__ == '__main__':
     test_start = time()
     for iteration in xrange(TEST_ITERATIONS):
         state = env.reset()
+        state = f(state)
         while True:
             action, _ = agent.act(state)
             state, reward, done, _ = env.step(action)
+            state = f(state)
             test_rewards += reward
             if done:
                 break
