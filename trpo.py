@@ -5,7 +5,7 @@ import cPickle as pk
 import tensorflow as tf
 from keras import backend as K
 from time import time
-from variables import DTYPE, EPSILON
+from variables import DTYPE, EPSILON, CG_DAMPING, LAM
 from utils import convert_type, discount, LinearVF, gauss_log_prob, numel, dot_not_flat
 
 
@@ -134,7 +134,8 @@ class TRPO(object):
         advantages = []
 
         for ep in xrange(self.iter_n_ep+1):
-            r = discount(self.iter_rewards[ep], self.gamma)
+            # TODO: Implement GAE here. (cf: modular_rl.core.py:49)
+            r = discount(self.iter_rewards[ep], self.gamma*LAM)
             b = self.vf(self.iter_states[ep])
             # baselines.append(b)
             returns.append(r)
@@ -159,7 +160,6 @@ class TRPO(object):
 
         # TODO: The following is to be cleaned, most of it can be made into a graph
         #Begin of CG
-        cg_damping = 1e-3
 
         surr_loss, surr_gradients = self.surrogate(*inputs)
         def fisher_vec_prod(vectors):
@@ -169,7 +169,7 @@ class TRPO(object):
 
             res = self.grads_gvp(args + vectors)
             # GRAPH: directly get grads_graph and extend it with the following
-            return [r + (p * cg_damping) for r, p in zip(res, vectors)]
+            return [r + (p * CG_DAMPING) for r, p in zip(res, vectors)]
 
         def conjgrad(fvp, grads, cg_iters=10, residual_tol=1e-10):
             p = [np.copy(g) for g in grads]
@@ -249,7 +249,7 @@ class TRPO(object):
 
     def done(self):
         return False
-        return self.iter_reward >= self.env.solved_threshold * 2.1
+        return self.iter_reward >= self.env.solved_threshold * 1.1
 
     def load(self, path):
         with open(path, 'wb') as f:

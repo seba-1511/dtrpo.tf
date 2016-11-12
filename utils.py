@@ -28,7 +28,8 @@ class FCNet(object):
         self.layers = []
         x = data = Input(shape=in_dim)
         for l in layer_sizes:
-            x = Dense(l, activation='relu', init='glorot_uniform')(x)
+            # x = Dense(l, activation='relu', init='glorot_uniform')(x)
+            x = Dense(l, activation='tanh', init='glorot_uniform')(x)
             self.layers.append(x)
         x = Dense(out_dim, activation='linear', init='glorot_uniform')(x)
         self.layers.append(x)
@@ -44,7 +45,6 @@ class FCNet(object):
         return self.net([x, ])[0]
 
     def set_params(self, update):
-        return 0.0
         raise('not implemented !')
 
 
