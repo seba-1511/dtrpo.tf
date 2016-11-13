@@ -76,7 +76,7 @@ if __name__ == '__main__':
             if done or agent.done():
                 break
             state = next_state
-        agent.new_episode()
+        agent.new_episode(done)
         # if agent.n_iterations % SAVE_FREQ == 0:
             # agent.save('./snapshots/trpo' + str(time()) + '.pkl')
         if agent.done():

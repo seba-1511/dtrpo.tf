@@ -119,6 +119,24 @@ class TRPO(object):
         self.iter_action_logstd = [[], ]
         self.iter_done = []
 
+    def _remove_episode(self, ep):
+        """
+        ep: int or list of ints. Index of episodes to be remove from current 
+        iteration.
+        """
+        self.iter_rewards = np.delete(self.iter_rewards, ep, 0)
+        self.iter_actions = np.delete(self.iter_actions, ep, 0)
+        self.iter_states = np.delete(self.iter_states, ep, 0)
+        self.iter_action_mean = np.delete(self.iter_action_mean, ep, 0)
+        self.iter_action_logstd = np.delete(self.iter_action_logstd, ep, 0)
+        self.iter_done = np.delete(self.iter_done, ep, 0)
+        if isinstance(ep, list):
+            self.iter_n_ep -= len(ep)
+            self.episodes -= len(ep)
+        else:
+            self.iter_n_ep -= 1
+            self.episodes -= 1
+
 
     def act(self, s):
         """
@@ -160,42 +178,17 @@ class TRPO(object):
         self.step += 1
         self.iter_reward += r
 
-        if end_ep:
-            self.new_episode(terminated=True)
-
         if self.step % self.update_freq == 0:
             self.update()
 
-    def _remove_episode(self, ep):
-        """
-        ep: int or list of ints. Index of episodes to be remove from current 
-        iteration.
-        """
-        self.iter_rewards = np.delete(self.iter_rewards, ep, 0)
-        self.iter_actions = np.delete(self.iter_actions, ep, 0)
-        self.iter_states = np.delete(self.iter_states, ep, 0)
-        self.iter_action_mean = np.delete(self.iter_action_mean, ep, 0)
-        self.iter_action_logstd = np.delete(self.iter_action_logstd, ep, 0)
-        self.iter_done = np.delete(self.iter_done, ep, 0)
-        if isinstance(ep, list):
-            self.iter_n_ep -= len(ep)
-            self.episodes -= len(ep)
-        else:
-            self.iter_n_ep -= 1
-            self.episodes -= 1
-
     def update(self):
+        """
+        Performs the TRPO update of the parameters.
+        """
         returns = []
         advantages = []
 
-        # Remove empty episodes
-        to_remove = []
-        for ep in xrange(self.iter_n_ep+1):
-            if len(self.iter_rewards[ep]) < 1:
-                to_remove.append(ep)
-        self._remove_episode(to_remove)
-
-        # Compute advantage function
+        # Compute advantage 
         for ep in xrange(self.iter_n_ep+1):
             r = discount(self.iter_rewards[ep], self.gamma)
             b = self.vf(self.iter_states[ep])
