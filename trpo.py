@@ -58,6 +58,7 @@ class TRPO(object):
         self._reset_iter()
         self.np_action_logstd_param = convert_type(0.01 * np.random.randn(1, policy.out_dim))
         self.action_logstd_param = K.variable(self.np_action_logstd_param)
+        self.previous = [0.0 for _ in self.params]
 
         self.build_computational_graphs()
 
@@ -276,21 +277,28 @@ class TRPO(object):
             max_backtracks = 10
             loss_val = loss(params)
             for (i, stepfrac) in enumerate(0.5 ** np.arange(max_backtracks)):
-                new_params = [a + (stepfrac * b) for a, b in zip(params, fullstep)]
+                update = [(stepfrac * f) for f in fullstep]
+                new_params = [p + u for p, u in zip(params, update)]
+                # new_params = [a + (stepfrac * b) for a, b in zip(params, fullstep)]
                 new_loss_val = loss(new_params)
                 actual_improve = loss_val - new_loss_val
                 exp_improve = stepfrac * exp_improve_rate
                 ratio = actual_improve / exp_improve
                 if ratio > accept_ratio and actual_improve > 0:
-                    return new_params
-            return params
+                    return update
+                    # return new_params
+            return [0 for f in fullstep]
+            # return params
 
         params = K.batch_get_value(self.params)
         update = linesearch(loss, params, fullstep, neggdotdir / lm)
+        update = [u + f for f, u in zip(fullstep, update)]
         if DISTRIBUTED:
             update = sync_list(update, avg=True)
-            fullstep = sync_list(fullstep, avg=True)
-        new_params = [u + f for u, f in zip(update, fullstep)]
+            # fullstep = sync_list(fullstep, avg=True)
+        # new_params = [u + f for u, f in zip(update, fullstep)]
+        self.previous = [0.3 * prev + u for prev, u in zip(self.previous, update)]
+        new_params = [p + u for p, u in zip(params, self.previous)]
         self.set_params(new_params)
         # End Linesearch
         
