@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+
 import gym
 import mj_envs
 from time import time
@@ -11,6 +12,9 @@ from variables import (MAX_ITERATIONS, ENV, RENDER, SAVE_FREQ, TEST_ITERATIONS,
 from trpo import TRPO
 from utils import FCNet, numel
 from optimizers import ConjugateGradients
+from mpi4py import MPI
+
+rank = MPI.COMM_WORLD.Get_rank()
 
 
 class Filter:
@@ -36,7 +40,6 @@ class Filter:
 
 f = Filter()
 r = Filter()
-
 
 if __name__ == '__main__':
     env = gym.make(ENV)
@@ -82,7 +85,7 @@ if __name__ == '__main__':
     training_end = time()
 
     # Test Time:
-    if RECORD:
+    if RECORD and rank == 0:
         env.monitor.start('./videos/' + ENV + str(time()) + '/')
     test_rewards = 0
     test_start = time()
@@ -91,6 +94,7 @@ if __name__ == '__main__':
         if FILTER:
             state = f(state)
         while True:
+        # for _ in xrange(MAX_PATH_LENGTH):
             action, _ = agent.act(state)
             state, reward, done, _ = env.step(action)
             if FILTER:

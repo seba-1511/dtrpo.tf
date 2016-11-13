@@ -8,6 +8,26 @@ from time import time
 from variables import DTYPE, EPSILON, CG_DAMPING, LAM
 from utils import convert_type, discount, LinearVF, gauss_log_prob, numel, dot_not_flat
 
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+size = comm.Get_size()
+
+def dprint(*args, **kwargs):
+    if size > 1 and not rank == 0:
+        return
+    else: 
+        print(args)
+
+
+def sync_list(arrays, avg=True):
+    buffs = [np.copy(a) for a in arrays]
+    for a, b in zip(arrays, buffs):
+        comm.Allreduce(a, b, MPI.SUM)
+        if avg:
+            b /= float(size)
+    return buffs
+
 
 class TRPO(object):
 
@@ -38,6 +58,10 @@ class TRPO(object):
         self.build_computational_graphs()
 
         self.start_time = time()
+        if comm.Get_size() > 1:
+            params = K.batch_get_value(self.params)
+            params = sync_list(params)
+            self.set_params(params)
 
     @property
     def n_iterations(self):
@@ -226,6 +250,9 @@ class TRPO(object):
 
         params = K.batch_get_value(self.params)
         update = linesearch(loss, params, fullstep, neggdotdir / lm)
+        if comm.Get_size() > 1:
+            update = sync_list(update, avg=True)
+            fullstep = sync_list(fullstep, avg=True)
         new_params = [u + f for u, f in zip(update, fullstep)]
         self.set_params(new_params)
         # End Linesearch
@@ -236,15 +263,15 @@ class TRPO(object):
 
         surr, ent, kl = self.losses(args)
 
-        print '*' * 20, 'Iteration ' + str(self.n_iterations), '*' * 20
-        print 'Average Reward on Iteration:', self.iter_reward / float(self.iter_n_ep+1)
-        print 'Total Steps: ', self.step
-        print 'Total Epsiodes: ', self.episodes
-        print 'Time Elapsed: ', time() - self.start_time
-        print 'KL Divergence: ', kl
-        print 'Surrogate Loss: ', surr
-        print 'Entropy: ', ent
-        print '\n'
+        dprint('*' * 20, 'Iteration ' + str(self.n_iterations), '*' * 20)
+        dprint('Average Reward on Iteration:', self.iter_reward / float(max(self.iter_n_ep, 1)))
+        dprint('Total Steps: ', self.step)
+        dprint('Total Epsiodes: ', self.episodes)
+        dprint('Time Elapsed: ', time() - self.start_time)
+        dprint('KL Divergence: ', kl)
+        dprint('Surrogate Loss: ', surr)
+        dprint('Entropy: ', ent)
+        dprint('\n')
         self._reset_iter()
 
     def done(self):
