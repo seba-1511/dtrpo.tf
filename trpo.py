@@ -5,7 +5,7 @@ import cPickle as pk
 import tensorflow as tf
 from keras import backend as K
 from time import time
-from variables import DTYPE, EPSILON, CG_DAMPING, LAM
+from variables import DTYPE, EPSILON, CG_DAMPING
 from utils import convert_type, discount, LinearVF, gauss_log_prob, numel, dot_not_flat
 
 from mpi4py import MPI
@@ -13,8 +13,10 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
+DISTRIBUTED = size > 1
+
 def dprint(*args, **kwargs):
-    if size > 1 and not rank == 0:
+    if DISTRIBUTED and not rank == 0:
         return
     else: 
         print(args)
@@ -41,7 +43,7 @@ class TRPO(object):
     """
 
     def __init__(self, env, policy=None, optimizer=None, delta=0.01,
-                 gamma=0.99, update_freq=100):
+                 gamma=0.99, update_freq=100, gae=True, gae_lam=0.97):
         self.env = env
         self.policy = policy
         self.optimizer = optimizer
@@ -51,6 +53,8 @@ class TRPO(object):
         self.step = 0
         self.episodes = 0
         self.vf = LinearVF()
+        self.gae = gae
+        self.gae_lam = gae_lam
         self._reset_iter()
         self.np_action_logstd_param = convert_type(0.01 * np.random.randn(1, policy.out_dim))
         self.action_logstd_param = K.variable(self.np_action_logstd_param)
@@ -58,7 +62,7 @@ class TRPO(object):
         self.build_computational_graphs()
 
         self.start_time = time()
-        if comm.Get_size() > 1:
+        if DISTRIBUTED:
             params = K.batch_get_value(self.params)
             params = sync_list(params)
             self.set_params(params)
@@ -113,6 +117,7 @@ class TRPO(object):
         self.iter_rewards = [[], ]
         self.iter_action_mean = [[], ]
         self.iter_action_logstd = [[], ]
+        self.iter_done = []
 
 
     def act(self, s):
@@ -129,6 +134,21 @@ class TRPO(object):
         return out[0], {'action_mean': action_mean,
                         'action_logstd': self.np_action_logstd_param}
 
+    def new_episode(self, terminated=False):
+        """
+        terminated: whether the episode was terminated by the env (True), or by
+        manually (False).
+        """
+        self.iter_done.append(terminated)
+        if not terminated or self.step % self.update_freq != 0:
+            self.iter_n_ep += 1
+            self.episodes += 1
+            self.iter_actions.append([])
+            self.iter_states.append([])
+            self.iter_rewards.append([])
+            self.iter_action_mean.append([])
+            self.iter_action_logstd.append([])
+
     def learn(self, s0, a, r, s1, end_ep, action_info=None):
         ep = self.iter_n_ep
         self.iter_actions[ep].append(a)
@@ -140,30 +160,54 @@ class TRPO(object):
         self.step += 1
         self.iter_reward += r
 
-        if end_ep and self.step % self.update_freq != 0:
-            ep = self.iter_n_ep = ep + 1
-            self.episodes += 1
-            self.iter_actions.append([])
-            self.iter_states.append([])
-            self.iter_rewards.append([])
-            self.iter_action_mean.append([])
-            self.iter_action_logstd.append([])
+        if end_ep:
+            self.new_episode(terminated=True)
 
         if self.step % self.update_freq == 0:
             self.update()
 
+    def _remove_episode(self, ep):
+        """
+        ep: int or list of ints. Index of episodes to be remove from current 
+        iteration.
+        """
+        self.iter_rewards = np.delete(self.iter_rewards, ep, 0)
+        self.iter_actions = np.delete(self.iter_actions, ep, 0)
+        self.iter_states = np.delete(self.iter_states, ep, 0)
+        self.iter_action_mean = np.delete(self.iter_action_mean, ep, 0)
+        self.iter_action_logstd = np.delete(self.iter_action_logstd, ep, 0)
+        self.iter_done = np.delete(self.iter_done, ep, 0)
+        if isinstance(ep, list):
+            self.iter_n_ep -= len(ep)
+            self.episodes -= len(ep)
+        else:
+            self.iter_n_ep -= 1
+            self.episodes -= 1
+
     def update(self):
-        # baselines = []
         returns = []
         advantages = []
 
+        # Remove empty episodes
+        to_remove = []
         for ep in xrange(self.iter_n_ep+1):
-            # TODO: Implement GAE here. (cf: modular_rl.core.py:49)
-            r = discount(self.iter_rewards[ep], self.gamma*LAM)
+            if len(self.iter_rewards[ep]) < 1:
+                to_remove.append(ep)
+        self._remove_episode(to_remove)
+
+        # Compute advantage function
+        for ep in xrange(self.iter_n_ep+1):
+            r = discount(self.iter_rewards[ep], self.gamma)
             b = self.vf(self.iter_states[ep])
-            # baselines.append(b)
+            if self.gae and len(b) > 0:
+                terminated = len(self.iter_done) != ep and self.iter_done[ep] 
+                b1 = np.append(b, 0 if terminated else b[-1])
+                deltas = self.iter_rewards[ep] + self.gamma*b1[1:] - b1[:-1]
+                adv = discount(deltas, self.gamma * self.gae_lam)
+            else:
+                adv = r - b
             returns.append(r)
-            advantages.append(r - b)
+            advantages.append(adv)
 
         # Fit baseline for next iter
         self.vf.learn(self.iter_states, returns)
@@ -250,7 +294,7 @@ class TRPO(object):
 
         params = K.batch_get_value(self.params)
         update = linesearch(loss, params, fullstep, neggdotdir / lm)
-        if comm.Get_size() > 1:
+        if DISTRIBUTED:
             update = sync_list(update, avg=True)
             fullstep = sync_list(fullstep, avg=True)
         new_params = [u + f for u, f in zip(update, fullstep)]

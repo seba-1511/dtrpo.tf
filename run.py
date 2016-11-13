@@ -8,7 +8,7 @@ import numpy as np
 
 from variables import (MAX_ITERATIONS, ENV, RENDER, SAVE_FREQ, TEST_ITERATIONS,
                        MAX_PATH_LENGTH, RND_SEED, UPDATE_FREQ, RECORD, FILTER,
-                       FILTER_REWARDS, MAX_KL, GAMMA)
+                       FILTER_REWARDS, MAX_KL, GAMMA, GAE, LAM)
 from trpo import TRPO
 from utils import FCNet, numel
 from optimizers import ConjugateGradients
@@ -49,7 +49,8 @@ if __name__ == '__main__':
                    numel(env.action_space))
     opt = ConjugateGradients()
     agent = TRPO(env, policy, optimizer=opt,
-                 update_freq=UPDATE_FREQ, delta=MAX_KL, gamma=GAMMA)
+                 update_freq=UPDATE_FREQ, delta=MAX_KL, gamma=GAMMA, gae=GAE, 
+                 gae_lam=LAM)
 
     # Train Time:
     real_reward = 0.0
@@ -71,12 +72,11 @@ if __name__ == '__main__':
                     real_reward = 0.0
             if RENDER:
                 env.render()
-            if path == MAX_PATH_LENGTH - 1:
-                done = True
             agent.learn(state, action, reward, next_state, done, action_info)
             if done or agent.done():
                 break
             state = next_state
+        agent.new_episode()
         # if agent.n_iterations % SAVE_FREQ == 0:
             # agent.save('./snapshots/trpo' + str(time()) + '.pkl')
         if agent.done():
