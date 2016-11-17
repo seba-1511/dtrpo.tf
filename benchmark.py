@@ -3,6 +3,7 @@
 import gym
 import numpy as np
 import randopt as ro
+import mj_envs
 
 from random import random
 from time import time
@@ -66,10 +67,11 @@ class Filter:
 
 
 # Define constants
-f = Filter()
 rank = MPI.COMM_WORLD.Get_rank()
 size = MPI.COMM_WORLD.Get_size()
 RNG_SEED = 1234
+MJ_ENVS = ['SmallInvertedPendulum-v1', 'BigInvertedPendulum-v1', 'AmputedAnt-v1', 'BigAnt-v1', 'ExtendedAnt-v1']
+f = Filter()
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -131,7 +133,8 @@ if __name__ == '__main__':
     # Upload results
     if rank == 0:
         env.monitor.close()
-        gym.upload(monitor_path)
+        if args.env not in MJ_ENVS:
+            gym.upload(monitor_path)
         # gym.upload(monitor_path, algorithm_id='dtrpo-' + args.exp)
 
     # Start Testing Phase
