@@ -8,7 +8,7 @@ import numpy as np
 
 from variables import (MAX_ITERATIONS, ENV, RENDER, SAVE_FREQ, TEST_ITERATIONS,
                        MAX_PATH_LENGTH, RND_SEED, UPDATE_FREQ, RECORD, FILTER,
-                       FILTER_REWARDS, MAX_KL, GAMMA, GAE, LAM)
+                       FILTER_REWARDS, MAX_KL, GAMMA, GAE, LAM, CG_DAMPING)
 from trpo import TRPO
 from utils import FCNet, numel
 from optimizers import ConjugateGradients
@@ -50,7 +50,7 @@ if __name__ == '__main__':
     opt = ConjugateGradients()
     agent = TRPO(env, policy, optimizer=opt,
                  update_freq=UPDATE_FREQ, delta=MAX_KL, gamma=GAMMA, gae=GAE, 
-                 gae_lam=LAM)
+                 gae_lam=LAM, cg_damping=CG_DAMPING)
 
     # Train Time:
     real_reward = 0.0
