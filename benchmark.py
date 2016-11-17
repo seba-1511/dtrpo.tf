@@ -68,6 +68,8 @@ class Filter:
 # Define constants
 f = Filter()
 rank = MPI.COMM_WORLD.Get_rank()
+size = MPI.COMM_WORLD.Get_size()
+RNG_SEED = 1234
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -89,11 +91,13 @@ if __name__ == '__main__':
         'cg_damping': ro.Constant(args.cg_damping),
         'gamma': ro.Constant(args.gamma),
     })
+    exp.sample_all_params()
 
     # Define the environment
     env = gym.make(args.env)
-    env.seed(1234)
     env.solved_threshold = args.solved
+    env.seed(RNG_SEED)
+    np.random.seed(RNG_SEED)
 
     # Instantiate the agent
     policy = FCNet(numel(env.observation_space), numel(env.action_space))
@@ -127,7 +131,8 @@ if __name__ == '__main__':
     # Upload results
     if rank == 0:
         env.monitor.close()
-        gym.upload(monitor_path, algorithm_id='dtrpo-' + args.exp)
+        gym.upload(monitor_path)
+        # gym.upload(monitor_path, algorithm_id='dtrpo-' + args.exp)
 
     # Start Testing Phase
     test_n_iter = 100
@@ -158,7 +163,7 @@ if __name__ == '__main__':
                 'test_reward': test_rewards,
                 'test_timing': test_end - test_start, 
                 'training_timing': training_end - training_start, 
-                'traning_stats': agent.stats,
+                'training_stats': agent.stats,
                 }
         exp.add_result(test_rewards / float(test_n_iter), res_data)
 
