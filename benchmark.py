@@ -147,7 +147,8 @@ if __name__ == '__main__':
         state = env.reset()
         if args.filter:
             state = f(state)
-        while True:
+        # while True:
+        for _ in xrange(2 * args.max_path_length):
             action, _ = agent.act(state)
             state, reward, done, _ = env.step(action)
             if args.filter:
