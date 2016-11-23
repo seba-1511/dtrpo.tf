@@ -5,7 +5,7 @@ import cPickle as pk
 import tensorflow as tf
 from keras import backend as K
 from time import time
-from variables import DTYPE, EPSILON, CG_DAMPING
+from variables import DTYPE, EPSILON
 from utils import convert_type, discount, LinearVF, gauss_log_prob, numel, dot_not_flat
 
 from mpi4py import MPI
@@ -43,7 +43,8 @@ class TRPO(object):
     """
 
     def __init__(self, env, policy=None, optimizer=None, delta=0.01,
-                 gamma=0.99, update_freq=100, gae=True, gae_lam=0.97):
+                 gamma=0.99, update_freq=100, gae=True, gae_lam=0.97, 
+                 cg_damping=0.1):
         self.env = env
         self.policy = policy
         self.optimizer = optimizer
@@ -55,10 +56,12 @@ class TRPO(object):
         self.vf = LinearVF()
         self.gae = gae
         self.gae_lam = gae_lam
+        self.cg_damping = cg_damping
         self._reset_iter()
         self.np_action_logstd_param = convert_type(0.01 * np.random.randn(1, policy.out_dim))
         self.action_logstd_param = K.variable(self.np_action_logstd_param)
         self.previous = [0.0 for _ in self.params]
+        self.stats = []
 
         self.build_computational_graphs()
 
@@ -231,7 +234,7 @@ class TRPO(object):
 
             res = self.grads_gvp(args + vectors)
             # GRAPH: directly get grads_graph and extend it with the following
-            return [r + (p * CG_DAMPING) for r, p in zip(res, vectors)]
+            return [r + (p * self.cg_damping) for r, p in zip(res, vectors)]
 
         def conjgrad(fvp, grads, cg_iters=10, residual_tol=1e-10):
             p = [np.copy(g) for g in grads]
@@ -308,20 +311,31 @@ class TRPO(object):
 
         surr, ent, kl = self.losses(args)
 
+        stats = {
+            'iteration': self.n_iterations,
+            'avg_reward': self.iter_reward / float(max(self.iter_n_ep, 1)),
+            'total_steps': self.step,
+            'total_ep': self.episodes,
+            'total_time': time() - self.start_time,
+            'kl_div': kl,
+            'surr_loss': surr,
+            'entropy': ent,
+        }
         dprint('*' * 20, 'Iteration ' + str(self.n_iterations), '*' * 20)
-        dprint('Average Reward on Iteration:', self.iter_reward / float(max(self.iter_n_ep, 1)))
+        dprint('Average Reward on Iteration:', stats['avg_reward'])
         dprint('Total Steps: ', self.step)
         dprint('Total Epsiodes: ', self.episodes)
-        dprint('Time Elapsed: ', time() - self.start_time)
+        dprint('Time Elapsed: ', stats['total_time'])
         dprint('KL Divergence: ', kl)
         dprint('Surrogate Loss: ', surr)
         dprint('Entropy: ', ent)
         dprint('\n')
+        self.stats.append(stats)
         self._reset_iter()
 
     def done(self):
         return False
-        return self.iter_reward >= self.env.solved_threshold * 1.1
+        # return self.iter_reward >= self.env.solved_threshold * 1.1
 
     def load(self, path):
         with open(path, 'wb') as f:
