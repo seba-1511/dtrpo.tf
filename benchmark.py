@@ -42,6 +42,8 @@ parser.add_argument('--gamma', dest='gamma', type=float,
         default=0.99, help='Discount factor.')
 parser.add_argument('--record', dest='record', type=bool,
         default=False, help='Whether to record videos at test time.')
+parser.add_argument('--upload', dest='upload', type=bool,
+        default=False, help='Whether to upload results to the OpenAI servers.')
 
 
 class Filter:
@@ -133,7 +135,7 @@ if __name__ == '__main__':
     # Upload results
     if rank == 0:
         env.monitor.close()
-        if args.env not in MJ_ENVS:
+        if args.upload and args.env not in MJ_ENVS:
             gym.upload(monitor_path)
         # gym.upload(monitor_path, algorithm_id='dtrpo-' + args.exp)
 
@@ -167,8 +169,8 @@ if __name__ == '__main__':
                 'test_reward': test_rewards,
                 'test_timing': test_end - test_start, 
                 'training_timing': training_end - training_start, 
-                'training_stats': agent.stats,
                 }
+        res_data.update(agent.stats)
         exp.add_result(test_rewards / float(test_n_iter), res_data)
 
     # Print results

@@ -61,7 +61,16 @@ class TRPO(object):
         self.np_action_logstd_param = convert_type(0.01 * np.random.randn(1, policy.out_dim))
         self.action_logstd_param = K.variable(self.np_action_logstd_param)
         self.previous = [0.0 for _ in self.params]
-        self.stats = []
+        self.stats = {
+            'iteration': [],
+            'avg_reward': [],
+            'total_steps': [],
+            'total_ep': [],
+            'total_time': [],
+            'kl_div': [],
+            'surr_loss': [],
+            'entropy': [],
+        }
 
         self.build_computational_graphs()
 
@@ -330,7 +339,14 @@ class TRPO(object):
         dprint('Surrogate Loss: ', surr)
         dprint('Entropy: ', ent)
         dprint('\n')
-        self.stats.append(stats)
+        self.stats['iteration'].append(stats['iteration'])
+        self.stats['avg_reward'].append(stats['avg_reward'])
+        self.stats['total_steps'].append(stats['total_steps'])
+        self.stats['total_ep'].append(stats['total_ep'])
+        self.stats['total_time'].append(stats['total_time'])
+        self.stats['kl_div'].append(stats['kl_div'])
+        self.stats['surr_loss'].append(stats['surr_loss'])
+        self.stats['entropy'].append(stats['entropy'])
         self._reset_iter()
 
     def done(self):
