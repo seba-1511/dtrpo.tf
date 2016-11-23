@@ -107,7 +107,8 @@ if __name__ == '__main__':
     policy = FCNet(numel(env.observation_space), numel(env.action_space))
     agent = TRPO(env=env, policy=policy, optimizer=None, delta=args.delta,
                  gamma=args.gamma, update_freq=args.timesteps_per_batch, 
-                 gae=args.gae, gae_lam=args.gae_lam, cg_damping=args.cg_damping)
+                 gae=args.gae, gae_lam=args.gae_lam, cg_damping=args.cg_damping,
+                 momentum=args.momentum)
 
     # Start training phase
     monitor_path = '/tmp/' + exp_name + str(random())

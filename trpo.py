@@ -44,7 +44,7 @@ class TRPO(object):
 
     def __init__(self, env, policy=None, optimizer=None, delta=0.01,
                  gamma=0.99, update_freq=100, gae=True, gae_lam=0.97, 
-                 cg_damping=0.1):
+                 cg_damping=0.1, momentum=0.0):
         self.env = env
         self.policy = policy
         self.optimizer = optimizer
@@ -57,6 +57,7 @@ class TRPO(object):
         self.gae = gae
         self.gae_lam = gae_lam
         self.cg_damping = cg_damping
+        self.momentum = momentum
         self._reset_iter()
         self.np_action_logstd_param = convert_type(0.01 * np.random.randn(1, policy.out_dim))
         self.action_logstd_param = K.variable(self.np_action_logstd_param)
@@ -308,7 +309,8 @@ class TRPO(object):
             update = sync_list(update, avg=True)
             # fullstep = sync_list(fullstep, avg=True)
         # new_params = [u + f for u, f in zip(update, fullstep)]
-        self.previous = [0.3 * prev + u for prev, u in zip(self.previous, update)]
+        self.previous = [self.momentum * prev + u 
+                         for prev, u in zip(self.previous, update)]
         new_params = [p + u for p, u in zip(params, self.previous)]
         self.set_params(new_params)
         # End Linesearch
