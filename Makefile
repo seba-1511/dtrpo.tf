@@ -1,6 +1,6 @@
 
 all: 
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.0 --max_path_length 5000 --timesteps_per_batch 5000 --n_iter 5 --env 'InvertedPendulum-v1' --solved 950.0
+	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.0 --max_path_length 5000 --timesteps_per_batch 5000 --n_iter 50 --env 'InvertedPendulum-v1' --solved 950.0
 
 seq:
 	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow ipython run.py

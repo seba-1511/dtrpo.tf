@@ -62,7 +62,6 @@ class TRPO(object):
         self.action_logstd_param = K.variable(self.np_action_logstd_param)
         self.previous = [0.0 for _ in self.params]
         self.stats = {
-            'iteration': [],
             'avg_reward': [],
             'total_steps': [],
             'total_ep': [],
@@ -321,14 +320,13 @@ class TRPO(object):
         surr, ent, kl = self.losses(args)
 
         stats = {
-            'iteration': self.n_iterations,
             'avg_reward': self.iter_reward / float(max(self.iter_n_ep, 1)),
             'total_steps': self.step,
-            'total_ep': self.episodes,
+            'total_ep': int(self.episodes),
             'total_time': time() - self.start_time,
-            'kl_div': kl,
-            'surr_loss': surr,
-            'entropy': ent,
+            'kl_div': float(kl),
+            'surr_loss': float(surr),
+            'entropy': float(ent),
         }
         dprint('*' * 20, 'Iteration ' + str(self.n_iterations), '*' * 20)
         dprint('Average Reward on Iteration:', stats['avg_reward'])
@@ -339,7 +337,6 @@ class TRPO(object):
         dprint('Surrogate Loss: ', surr)
         dprint('Entropy: ', ent)
         dprint('\n')
-        self.stats['iteration'].append(stats['iteration'])
         self.stats['avg_reward'].append(stats['avg_reward'])
         self.stats['total_steps'].append(stats['total_steps'])
         self.stats['total_ep'].append(stats['total_ep'])
