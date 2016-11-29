@@ -303,18 +303,21 @@ class TRPO(object):
             # return params
 
         params = K.batch_get_value(self.params)
+        params = [p + self.momentum * prev 
+                  for p, prev in zip(params, self.previous)]
         update = linesearch(loss, params, fullstep, neggdotdir / lm)
         update = [u + f for f, u in zip(fullstep, update)]
         if DISTRIBUTED:
             update = sync_list(update, avg=True)
             # fullstep = sync_list(fullstep, avg=True)
         # new_params = [u + f for u, f in zip(update, fullstep)]
-        self.previous = [self.momentum * prev + u 
+        self.previous = [self.momentum * prev + u
                          for prev, u in zip(self.previous, update)]
-        new_params = [p + u for p, u in zip(params, self.previous)]
+        # new_params = [p + u for p, u in zip(params, self.previous)]
+        new_params = [p + u for p, u in zip(params, update)]
         self.set_params(new_params)
         # End Linesearch
-        
+
         a_logstds = np.zeros(means.shape, dtype=DTYPE) + logstds
         new_logstds = np.zeros(means.shape, dtype=DTYPE)
         args = [actions, states, means, a_logstds, advantage, new_logstds]

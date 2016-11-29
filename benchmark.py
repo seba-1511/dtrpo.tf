@@ -88,7 +88,8 @@ if __name__ == '__main__':
         'n_iter': ro.Constant(args.n_iter),
         'timesteps_per_batch': ro.Constant(args.timesteps_per_batch),
         'max_path_length': ro.Constant(args.max_path_length),
-        'momentum': ro.Constant(args.momentum),
+        # 'momentum': ro.Constant(args.momentum),
+        'momentum': ro.Gaussian(mean=args.momentum, std=0.3),
         'gae': ro.Constant(args.gae),
         'gae_lam': ro.Constant(args.gae_lam),
         'delta': ro.Constant(args.delta),
@@ -108,7 +109,7 @@ if __name__ == '__main__':
     agent = TRPO(env=env, policy=policy, optimizer=None, delta=args.delta,
                  gamma=args.gamma, update_freq=args.timesteps_per_batch, 
                  gae=args.gae, gae_lam=args.gae_lam, cg_damping=args.cg_damping,
-                 momentum=args.momentum)
+                 momentum=exp.momentum)
 
     # Start training phase
     monitor_path = '/tmp/' + exp_name + str(random())
