@@ -1,50 +1,6 @@
+.PHONY: all bench finger dist seq bench-dist
 
 all: 
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
 	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
 
 seq:
