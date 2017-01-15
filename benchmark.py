@@ -88,8 +88,8 @@ if __name__ == '__main__':
         'n_iter': ro.Constant(args.n_iter),
         'timesteps_per_batch': ro.Constant(args.timesteps_per_batch),
         'max_path_length': ro.Constant(args.max_path_length),
-        # 'momentum': ro.Constant(args.momentum),
-        'momentum': ro.Gaussian(mean=args.momentum, std=0.3),
+        'momentum': ro.Constant(args.momentum),
+        # 'momentum': ro.Gaussian(mean=args.momentum, std=0.3),
         'gae': ro.Constant(args.gae),
         'gae_lam': ro.Constant(args.gae_lam),
         'delta': ro.Constant(args.delta),
@@ -113,8 +113,8 @@ if __name__ == '__main__':
 
     # Start training phase
     monitor_path = '/tmp/' + exp_name + str(random())
-    if rank == 0:
-        env.monitor.start(monitor_path)
+    # if rank == 0:
+        # env.monitor.start(monitor_path)
     training_start = time()
     while agent.n_iterations < args.n_iter:
         state = env.reset()
@@ -135,11 +135,11 @@ if __name__ == '__main__':
     training_end = time()
 
     # Upload results
-    if rank == 0:
-        env.monitor.close()
-        if args.upload and args.env not in MJ_ENVS:
-            gym.upload(monitor_path)
-        # gym.upload(monitor_path, algorithm_id='dtrpo-' + args.exp)
+    # if rank == 0:
+        # env.monitor.close()
+        # if args.upload and args.env not in MJ_ENVS:
+            # gym.upload(monitor_path)
+        # # gym.upload(monitor_path, algorithm_id='dtrpo-' + args.exp)
 
     # Start Testing Phase
     test_n_iter = 100

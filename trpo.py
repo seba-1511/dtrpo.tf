@@ -352,8 +352,8 @@ class TRPO(object):
         self._reset_iter()
 
     def done(self):
-        # return False
-        return self.iter_reward >= self.env.solved_threshold * 1.1
+        return False
+        # return self.iter_reward >= self.env.solved_threshold * 1.1
 
     def load(self, path):
         with open(path, 'wb') as f:
