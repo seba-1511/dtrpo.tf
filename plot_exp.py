@@ -26,7 +26,8 @@ if __name__ == '__main__':
             train_rewards = res.params['avg_reward']
             e_rewards.append(np.array(train_rewards))
             e_scores.append(score)
-            p.plot(range(len(train_rewards)), train_rewards, label='Run ' + str(i))
+            p.plot(range(len(train_rewards)),
+                   train_rewards, label='Run ' + str(i))
         mean_score = 0
         if len(e_scores) > 0:
             mean_score = np.mean(e_scores)
@@ -39,14 +40,13 @@ if __name__ == '__main__':
     rewards_mean = np.mean(exp_rewards, axis=0)
     rewards_std = np.std(exp_rewards)
     mean_train.plot(range(len(rewards_mean)), rewards_mean, jitter=rewards_std)
-    mean_test.bar(exp_scores, labels=[''.join(c for c in name if c.isupper()) for name in exp_names])
-
-
+    mean_test.bar(exp_scores, labels=[''.join(c for c in name if c.isupper())
+                  for name in exp_names])
 
     # Plot Altogether
-    cont = Container(cols=2, rows=1 + int(ceil(len(exp_names)/2.0)))
+    cont = Container(cols=2, rows=1 + int(ceil(len(exp_names) / 2.0)))
     cont.set_plot(0, 0, mean_train)
     cont.set_plot(0, 1, mean_test)
     for i, plot in enumerate(exp_plots):
-        cont.set_plot(1 + (i//2), i%2, plot)
+        cont.set_plot(1 + (i // 2), i % 2, plot)
     cont.save('./plots/results_' + exp_pre + '.png')
