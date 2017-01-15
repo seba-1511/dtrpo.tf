@@ -24,7 +24,7 @@ if __name__ == '__main__':
         for i, res in enumerate(e.all_results()):
             score = res.params['test_reward']
             train_rewards = res.params['avg_reward']
-            e_rewards.append(train_rewards)
+            e_rewards.append(np.array(train_rewards))
             e_scores.append(score)
             p.plot(range(len(train_rewards)), train_rewards, label='Run ' + str(i))
         mean_score = 0
