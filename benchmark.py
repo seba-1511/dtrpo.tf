@@ -5,7 +5,7 @@ import numpy as np
 import randopt as ro
 import mj_envs
 
-from random import random
+from random import random, SystemRandom
 from time import time
 from mpi4py import MPI
 from argparse import ArgumentParser
@@ -71,7 +71,7 @@ class Filter:
 # Define constants
 rank = MPI.COMM_WORLD.Get_rank()
 size = MPI.COMM_WORLD.Get_size()
-RNG_SEED = 1234
+RNG_SEED = SystemRandom().randint(0, 99999)
 MJ_ENVS = ['SmallInvertedPendulum-v1', 'BigInvertedPendulum-v1', 'AmputedAnt-v1', 'BigAnt-v1', 'ExtendedAnt-v1']
 f = Filter()
 
@@ -95,6 +95,7 @@ if __name__ == '__main__':
         'delta': ro.Constant(args.delta),
         'cg_damping': ro.Constant(args.cg_damping),
         'gamma': ro.Constant(args.gamma),
+        'rng_seed': ro.Constant(RNG_SEED),
     })
     exp.sample_all_params()
 
