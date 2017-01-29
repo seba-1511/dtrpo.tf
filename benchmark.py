@@ -108,7 +108,7 @@ if __name__ == '__main__':
     # Instantiate the agent
     policy = FCNet(numel(env.observation_space), numel(env.action_space))
     agent = TRPO(env=env, policy=policy, optimizer=None, delta=args.delta,
-                 gamma=args.gamma, update_freq=args.timesteps_per_batch, 
+                 gamma=args.gamma, update_freq=args.timesteps_per_batch // size, 
                  gae=args.gae, gae_lam=args.gae_lam, cg_damping=args.cg_damping,
                  momentum=exp.momentum)
 
