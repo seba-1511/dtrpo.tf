@@ -2,6 +2,7 @@
 
 import numpy as np
 from scipy import signal
+import tensorflow as tf
 from keras import backend as K
 from keras.layers import Input, Dense
 from keras.models import Model
@@ -35,6 +36,7 @@ class FCNet(object):
         self.layers.append(x)
         self.model = Model(input=data, output=x)
         self.net = K.function([data, ], [self.model(data)], [])
+        self.data = data
 
     @property
     def params(self):

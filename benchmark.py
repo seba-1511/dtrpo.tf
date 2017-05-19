@@ -3,7 +3,7 @@
 import gym
 import numpy as np
 import randopt as ro
-import mj_envs
+import mj_transfer
 
 from random import random, SystemRandom
 from time import time
