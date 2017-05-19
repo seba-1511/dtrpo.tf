@@ -3,9 +3,9 @@
 import gym
 import numpy as np
 import randopt as ro
-import mj_envs
+import mj_transfer
 
-from random import random
+from random import random, SystemRandom
 from time import time
 from mpi4py import MPI
 from argparse import ArgumentParser
@@ -42,6 +42,8 @@ parser.add_argument('--gamma', dest='gamma', type=float,
         default=0.99, help='Discount factor.')
 parser.add_argument('--record', dest='record', type=bool,
         default=False, help='Whether to record videos at test time.')
+parser.add_argument('--upload', dest='upload', type=bool,
+        default=False, help='Whether to upload results to the OpenAI servers.')
 
 
 class Filter:
@@ -69,7 +71,7 @@ class Filter:
 # Define constants
 rank = MPI.COMM_WORLD.Get_rank()
 size = MPI.COMM_WORLD.Get_size()
-RNG_SEED = 1234
+RNG_SEED = SystemRandom().randint(0, 99999)
 MJ_ENVS = ['SmallInvertedPendulum-v1', 'BigInvertedPendulum-v1', 'AmputedAnt-v1', 'BigAnt-v1', 'ExtendedAnt-v1']
 f = Filter()
 
@@ -87,11 +89,13 @@ if __name__ == '__main__':
         'timesteps_per_batch': ro.Constant(args.timesteps_per_batch),
         'max_path_length': ro.Constant(args.max_path_length),
         'momentum': ro.Constant(args.momentum),
+        # 'momentum': ro.Gaussian(mean=args.momentum, std=0.3),
         'gae': ro.Constant(args.gae),
         'gae_lam': ro.Constant(args.gae_lam),
         'delta': ro.Constant(args.delta),
         'cg_damping': ro.Constant(args.cg_damping),
         'gamma': ro.Constant(args.gamma),
+        'rng_seed': ro.Constant(RNG_SEED),
     })
     exp.sample_all_params()
 
@@ -104,13 +108,14 @@ if __name__ == '__main__':
     # Instantiate the agent
     policy = FCNet(numel(env.observation_space), numel(env.action_space))
     agent = TRPO(env=env, policy=policy, optimizer=None, delta=args.delta,
-                 gamma=args.gamma, update_freq=args.timesteps_per_batch, 
-                 gae=args.gae, gae_lam=args.gae_lam, cg_damping=args.cg_damping)
+                 gamma=args.gamma, update_freq=args.timesteps_per_batch // size, 
+                 gae=args.gae, gae_lam=args.gae_lam, cg_damping=args.cg_damping,
+                 momentum=exp.momentum)
 
     # Start training phase
     monitor_path = '/tmp/' + exp_name + str(random())
-    if rank == 0:
-        env.monitor.start(monitor_path)
+    # if rank == 0:
+        # env.monitor.start(monitor_path)
     training_start = time()
     while agent.n_iterations < args.n_iter:
         state = env.reset()
@@ -131,11 +136,11 @@ if __name__ == '__main__':
     training_end = time()
 
     # Upload results
-    if rank == 0:
-        env.monitor.close()
-        if args.env not in MJ_ENVS:
-            gym.upload(monitor_path)
-        # gym.upload(monitor_path, algorithm_id='dtrpo-' + args.exp)
+    # if rank == 0:
+        # env.monitor.close()
+        # if args.upload and args.env not in MJ_ENVS:
+            # gym.upload(monitor_path)
+        # # gym.upload(monitor_path, algorithm_id='dtrpo-' + args.exp)
 
     # Start Testing Phase
     test_n_iter = 100
@@ -167,8 +172,8 @@ if __name__ == '__main__':
                 'test_reward': test_rewards,
                 'test_timing': test_end - test_start, 
                 'training_timing': training_end - training_start, 
-                'training_stats': agent.stats,
                 }
+        res_data.update(agent.stats)
         exp.add_result(test_rewards / float(test_n_iter), res_data)
 
     # Print results

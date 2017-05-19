@@ -44,7 +44,7 @@ class TRPO(object):
 
     def __init__(self, env, policy=None, optimizer=None, delta=0.01,
                  gamma=0.99, update_freq=100, gae=True, gae_lam=0.97, 
-                 cg_damping=0.1):
+                 cg_damping=0.1, momentum=0.0):
         self.env = env
         self.policy = policy
         self.optimizer = optimizer
@@ -57,10 +57,20 @@ class TRPO(object):
         self.gae = gae
         self.gae_lam = gae_lam
         self.cg_damping = cg_damping
+        self.momentum = momentum
         self._reset_iter()
         self.np_action_logstd_param = convert_type(0.01 * np.random.randn(1, policy.out_dim))
         self.action_logstd_param = K.variable(self.np_action_logstd_param)
-        self.stats = []
+        self.previous = [0.0 for _ in self.params]
+        self.stats = {
+            'avg_reward': [],
+            'total_steps': [],
+            'total_ep': [],
+            'total_time': [],
+            'kl_div': [],
+            'surr_loss': [],
+            'entropy': [],
+        }
 
         self.build_computational_graphs()
 
@@ -279,24 +289,37 @@ class TRPO(object):
             max_backtracks = 10
             loss_val = loss(params)
             for (i, stepfrac) in enumerate(0.5 ** np.arange(max_backtracks)):
-                new_params = [a + (stepfrac * b) for a, b in zip(params, fullstep)]
+                update = [(stepfrac * f) for f in fullstep]
+                new_params = [p + u for p, u in zip(params, update)]
+                # new_params = [a + (stepfrac * b) for a, b in zip(params, fullstep)]
                 new_loss_val = loss(new_params)
                 actual_improve = loss_val - new_loss_val
                 exp_improve = stepfrac * exp_improve_rate
                 ratio = actual_improve / exp_improve
                 if ratio > accept_ratio and actual_improve > 0:
-                    return new_params
-            return params
+                    return update
+                    # return new_params
+            return [0 for f in fullstep]
+            # return params
 
         params = K.batch_get_value(self.params)
+        # Apply momentum pre-linesearch:
+        # params = [p + self.momentum * prev 
+                  # for p, prev in zip(params, self.previous)]
         update = linesearch(loss, params, fullstep, neggdotdir / lm)
+        update = [u + f for f, u in zip(fullstep, update)]
         if DISTRIBUTED:
             update = sync_list(update, avg=True)
-            fullstep = sync_list(fullstep, avg=True)
-        new_params = [u + f for u, f in zip(update, fullstep)]
+            # fullstep = sync_list(fullstep, avg=True)
+        self.previous = [self.momentum * prev + u
+                         for prev, u in zip(self.previous, update)]
+        # Apply momentum pre-linesearch:
+        # new_params = [p + u for p, u in zip(params, update)]
+        # Apply momentum post-linesearch:
+        new_params = [p + u for p, u in zip(params, self.previous)]
         self.set_params(new_params)
         # End Linesearch
-        
+
         a_logstds = np.zeros(means.shape, dtype=DTYPE) + logstds
         new_logstds = np.zeros(means.shape, dtype=DTYPE)
         args = [actions, states, means, a_logstds, advantage, new_logstds]
@@ -304,14 +327,13 @@ class TRPO(object):
         surr, ent, kl = self.losses(args)
 
         stats = {
-            'iteration': self.n_iterations,
             'avg_reward': self.iter_reward / float(max(self.iter_n_ep, 1)),
             'total_steps': self.step,
-            'total_ep': self.episodes,
+            'total_ep': int(self.episodes),
             'total_time': time() - self.start_time,
-            'kl_div': kl,
-            'surr_loss': surr,
-            'entropy': ent,
+            'kl_div': float(kl),
+            'surr_loss': float(surr),
+            'entropy': float(ent),
         }
         dprint('*' * 20, 'Iteration ' + str(self.n_iterations), '*' * 20)
         dprint('Average Reward on Iteration:', stats['avg_reward'])
@@ -322,7 +344,13 @@ class TRPO(object):
         dprint('Surrogate Loss: ', surr)
         dprint('Entropy: ', ent)
         dprint('\n')
-        self.stats.append(stats)
+        self.stats['avg_reward'].append(stats['avg_reward'])
+        self.stats['total_steps'].append(stats['total_steps'])
+        self.stats['total_ep'].append(stats['total_ep'])
+        self.stats['total_time'].append(stats['total_time'])
+        self.stats['kl_div'].append(stats['kl_div'])
+        self.stats['surr_loss'].append(stats['surr_loss'])
+        self.stats['entropy'].append(stats['entropy'])
         self._reset_iter()
 
     def done(self):
