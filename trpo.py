@@ -167,7 +167,7 @@ class TRPO(object):
 
     def new_episode(self, terminated=False):
         """
-        terminated: whether the episode was terminated by the env (True), or by
+        terminated: whether the episode was terminated by the env (True), or 
         manually (False).
         """
         self.iter_done.append(terminated)
@@ -251,7 +251,7 @@ class TRPO(object):
             x = [np.zeros_like(g) for g in grads]
             # GRAPH: extend fvp, control with tf.cond, inputs are p, r, x
             rdotr = dot_not_flat(r, r)
-            rdotr = dot_not_flat(grads, grads)
+            # rdotr = dot_not_flat(grads, grads)
             for i in xrange(cg_iters):
                 z = fvp(p)
                 pdotz = np.sum([np.sum(a*b) for a, b in zip(p, z)])

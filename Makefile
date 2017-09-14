@@ -36,7 +36,7 @@ BENCH_PRE = "dist_$(NREPLICAS)_$(PRE)_mom_$(MOMENTUM)"
 
 
 all: 
-	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.3 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedDoublePendulum-v1' --solved 950.0
+	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow python benchmark.py -e dev --momentum 0.0 --max_path_length 5000 --timesteps_per_batch 15000 --n_iter 300 --env 'InvertedPendulum-v1' --solved 950.0
 
 seq:
 	CUDA_VISIBLE_DEVICES='' KERAS_BACKEND=tensorflow ipython run.py
